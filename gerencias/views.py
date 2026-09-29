@@ -1,6 +1,5 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
-from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.generic.edit import CreateView
@@ -8,20 +7,36 @@ from django.urls import reverse_lazy
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+
 User = get_user_model()
+
 from gerencias.forms import AccountSignupForm
-from gerencias.models import Conn, TbFuncionario,TbTipoFuncionario,TbCadastroResponsavel,TbFilhosResponsavel,TbOficios, TbMadrinhaPadrinho,TbApadrinhamentoCrianca
-from gerencias.models import TbMadrinhaPadrinho,TbApadrinhamentoCrianca,TbEvento, TbEntrega
+from gerencias.models import (
+    Conn,
+    TbFuncionario,
+    TbTipoFuncionario,
+    TbCadastroResponsavel,
+    TbFilhosResponsavel,
+    TbOficios,
+    TbMadrinhaPadrinho,
+    TbApadrinhamentoCrianca,
+    TbEvento,
+    TbEntrega,
+)
 import json
 import re
 from datetime import datetime, date
 
 
+# Função auxiliar para sanitizar valores e prevenir injeção de SQL (SQL Injection)
 def escapar(valor):
     if valor is None:
         return 'NULL'
-    return "'" + str(valor).replace("'", "\\'") + "'"
+    texto_limpo = str(valor).replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{texto_limpo}'"
 
+
+# Classe para criação de novos usuários com senha criptografada (Bcrypt/PBKDF2)
 class userCreateView(CreateView):
     model = User
     template_name = 'registration/signup_form.html'
@@ -30,46 +45,58 @@ class userCreateView(CreateView):
     success_message = 'Usuário criado com sucesso!'
 
     def form_valid(self, form):
-        
+        # Criptografa a senha utilizando o algoritmo principal definido no settings.py (Bcrypt)
         form.instance.password = make_password(form.instance.password)
         form.save()
         messages.success(self.request, self.success_message)
         return super(userCreateView, self).form_valid(form)
 
+
+# Classe auxiliar para estrutura de apadrinhamento
 class Apad:
-    def __init__(self, id_apad="", madrinha="", crianca="",data_cadastro="", flag_ativo=""):
+    def __init__(self, id_apad="", madrinha="", crianca="", data_cadastro="", flag_ativo=""):
         self.id_apad = id_apad
         self.madrinha = madrinha
         self.crianca = crianca
         self.data_cadastro = data_cadastro
         self.flag_ativo = flag_ativo
 
-#Home page
-def home(request):
-    return render(request,'gerencias/index.html')
 
-def pagina_erro(request, mensagem):
+# Página inicial do sistema
+def home(request):
+    return render(request, 'gerencias/index.html')
+
+
+# Página padrão para exibição amigável de erros
+def pagina_erro(request, mensagem="Ocorreu um erro inesperado no processamento."):
     contexto = {'mensagem': mensagem}
     return render(request, 'gerencias/pagina_erro.html', contexto)
 
+
+# ==========================================
+# BLOCO FUNCIONÁRIOS
+# ==========================================
+
 @login_required
-def lista_funcionarios(request): 
+def lista_funcionarios(request):
     try:
         lista = Conn.executa_query(
-            f"SELECT * FROM tb_funcionario WHERE  flag_ativo = 'S'")
-        return render(request, 'gerencias/lista_funcionarios.html', { 'lista': lista })
-
+            "SELECT * FROM tb_funcionario WHERE flag_ativo = 'S'"
+        )
+        return render(request, 'gerencias/lista_funcionarios.html', {'lista': lista})
     except Exception as e:
         mensagem = f"Erro ao listar funcionários: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
-@login_required   
+
+@login_required
 def novo_funcionario(request):
     try:
-        return render(request,'gerencias/novo_funcionario.html')
+        return render(request, 'gerencias/novo_funcionario.html')
     except Exception as e:
         mensagem = f"Erro ao acessar a página de cadastro de funcionário: {e}"
         return pagina_erro(request, mensagem=mensagem)
+
 
 @login_required
 def insere_novo_funcionario(request):
@@ -78,74 +105,78 @@ def insere_novo_funcionario(request):
             tp_m = request.POST.get('tp_funcionario')
             pnome = request.POST.get('pnome')
             snome = request.POST.get('snome')
-            cpf = request.POST.get('cpf')
-            cpf = cpf.replace('.', '').replace('-', '')  # Remove máscara do CPF
-            telefone = request.POST.get('telefone')
-            telefone = telefone.replace('(', '').replace(')', '').replace('-', '').replace(' ', '')  # Remove máscara do telefone
-            rua = request.POST.get('rua')
-            numero = request.POST.get('numero')
-            rua_n = rua + " - " + str(numero)
+            cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')  # Remove máscara do CPF
+            telefone = (request.POST.get('telefone') or '').replace('(', '').replace(')', '').replace('-', '').replace(' ', '')  # Remove máscara do telefone
+            rua = request.POST.get('rua') or ''
+            numero = request.POST.get('numero') or ''
+            rua_n = f"{rua} - {numero}"
             comp = request.POST.get('comp')
             bairro = request.POST.get('bairro')
             cidade = request.POST.get('cidade')
             estado = request.POST.get('estado')
             flag = request.POST.get('flag')
-            sql1 = "INSERT INTO tb_funcionario (id_tipo,pnome,snome, cpf,telefone,endereco,complemento,bairro,cidade,estado,flag_ativo)"
-            sql2 = f"VALUES({ escapar(tp_m) }, {escapar(pnome)}, {escapar(snome)}, {escapar(cpf)}, {escapar(telefone)}, {escapar(rua_n)}, {escapar(comp)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(flag)})"    
-            result = Conn.executa_insert(sql1+sql2)
-            
+
+            sql1 = "INSERT INTO tb_funcionario (id_tipo, pnome, snome, cpf, telefone, endereco, complemento, bairro, cidade, estado, flag_ativo) "
+            sql2 = f"VALUES({escapar(tp_m)}, {escapar(pnome)}, {escapar(snome)}, {escapar(cpf)}, {escapar(telefone)}, {escapar(rua_n)}, {escapar(comp)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(flag)})"
+            result = Conn.executa_insert(sql1 + sql2)
+
             func = Conn.executa_query(
-                f"SELECT * FROM tb_funcionario WHERE id_funcionario={ escapar(result) }")      
-            return render(request,'gerencias/lista_funcionarios.html',{ 'lista': func })
-        else :
-            mensagem = f"Erro ao inserir novo funcionário: Metodo HTTP inválido. Esperado POST, recebido {request.method}."
+                f"SELECT * FROM tb_funcionario WHERE id_funcionario = {escapar(result)}"
+            )
+            return render(request, 'gerencias/lista_funcionarios.html', {'lista': func})
+        else:
+            mensagem = f"Erro ao inserir novo funcionário: Método HTTP inválido. Esperado POST, recebido {request.method}."
             return pagina_erro(request, mensagem=mensagem)
     except Exception as e:
         mensagem = f"Erro ao inserir novo funcionário: {e}"
         return pagina_erro(request, mensagem=mensagem)
+
+
 @login_required
 def desativa_funcionario(request, id_funcionario):
     try:
-        if request.method == 'POST': 
-            id = id_funcionario
-            sql = f"UPDATE tb_funcionario SET flag_ativo = 'N' WHERE id_funcionario = { escapar(id)}"  
-            result = Conn.executa_insert(sql)
+        if request.method == 'POST':
+            sql = f"UPDATE tb_funcionario SET flag_ativo = 'N' WHERE id_funcionario = {escapar(id_funcionario)}"
+            Conn.executa_insert(sql)
             func = Conn.executa_query(
-                f"SELECT * FROM tb_funcionario WHERE  flag_ativo = 'S'")        
-            return render(request,'gerencias/lista_funcionarios.html',{ 'lista': func })
+                "SELECT * FROM tb_funcionario WHERE flag_ativo = 'S'"
+            )
+            return render(request, 'gerencias/lista_funcionarios.html', {'lista': func})
         else:
-            mensagem = f"Erro ao listar funcionários desativados: Método HTTP inválido. Esperado POST, recebido {request.method}."
+            mensagem = f"Erro ao desativar funcionário: Método HTTP inválido. Esperado POST, recebido {request.method}."
             return pagina_erro(request, mensagem=mensagem)
     except Exception as e:
         mensagem = f"Erro ao desativar funcionário: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def reativa_funcionario(request, id_funcionario):
     try:
         if request.method == 'POST':
-            id = id_funcionario  
-            sql = f"UPDATE tb_funcionario SET flag_ativo = 'S' WHERE id_funcionario = { escapar(id)}"  
-            result = Conn.executa_insert(sql)
+            sql = f"UPDATE tb_funcionario SET flag_ativo = 'S' WHERE id_funcionario = {escapar(id_funcionario)}"
+            Conn.executa_insert(sql)
             func = Conn.executa_query(
-                f"SELECT * FROM tb_funcionario WHERE  id_funcionario = {escapar(id_funcionario)}")
-            return render(request,'gerencias/lista_funcionarios.html',{ 'lista': func })
+                f"SELECT * FROM tb_funcionario WHERE id_funcionario = {escapar(id_funcionario)}"
+            )
+            return render(request, 'gerencias/lista_funcionarios.html', {'lista': func})
         else:
-            mensagem = f"Erro ao listar funcionários desativados: Método HTTP inválido. Esperado POST, recebido {request.method}."
+            mensagem = f"Erro ao reativar funcionário: Método HTTP inválido. Esperado POST, recebido {request.method}."
             return pagina_erro(request, mensagem=mensagem)
     except Exception as e:
         mensagem = f"Erro ao reativar funcionário: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def lista_funcionarios_desativos(request):
     try:
-        lista = TbFuncionario.objects.all().filter(flag_ativo='N')
+        lista = TbFuncionario.objects.filter(flag_ativo='N')
         return render(request, 'gerencias/lista_funcionarios_desativados.html', {'lista': lista})
-
     except Exception as e:
         mensagem = f"Erro ao listar funcionários desativados: {e}"
         return pagina_erro(request, mensagem=mensagem)
+
 
 @login_required
 def atualiza_funcionario(request):
@@ -157,16 +188,16 @@ def atualiza_funcionario(request):
             funcionario.id_tipo = tipo_funcionario
             funcionario.pnome = request.POST.get('pnome')
             funcionario.snome = request.POST.get('snome')
-            funcionario.cpf = request.POST.get('cpf').replace('.', '').replace('-', '')
-            funcionario.telefone = request.POST.get('telefone').replace('(', '').replace(')', '').replace('-', '').replace(' ', '')
+            funcionario.cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')
+            funcionario.telefone = (request.POST.get('telefone') or '').replace('(', '').replace(')', '').replace('-', '').replace(' ', '')
             funcionario.endereco = request.POST.get('endereco')
             funcionario.complemento = request.POST.get('complemento')
             funcionario.bairro = request.POST.get('bairro')
             funcionario.cidade = request.POST.get('cidade')
             funcionario.estado = request.POST.get('estado')
             funcionario.flag_ativo = request.POST.get('flag_ativo')
-            funcionario.save()  # Como managed=False, isso ainda funciona se o banco permitir
-            
+            funcionario.save()
+
             return redirect('lista_funcionarios')
         except Exception as e:
             mensagem = f"Erro ao atualizar funcionário: {e}"
@@ -175,17 +206,22 @@ def atualiza_funcionario(request):
         mensagem = f"Erro ao atualizar funcionário: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def editar_funcionario(request, id_funcionario):
     dados = TbFuncionario.objects.filter(id_funcionario=id_funcionario)
     return render(request, 'gerencias/editar_funcionario.html', {'dados': dados})
 
+
+# ==========================================
+# BLOCO RESPONSÁVEL (FAMÍLIAS)
+# ==========================================
+
 @login_required
 def novo_responsavel(request):
-    return render(request,'gerencias/novo_responsavel.html')
+    return render(request, 'gerencias/novo_responsavel.html')
 
 
-#BLOCO RESPONSAVEL
 @login_required
 def insere_novo_responsavel(request):
     if request.method == 'POST':
@@ -193,13 +229,13 @@ def insere_novo_responsavel(request):
             id_fun_cad = request.POST.get('id_usuario_cad')
             nome = request.POST.get('pnome')
             sobrenome = request.POST.get('snome')
-            cpf = request.POST.get('cpf')
-            cpf = cpf.replace('.', '').replace('-', '') 
-            dt_nasc = request.POST.get('dt_nasc').replace('-', '')
-            a = dt_nasc[0:4]
-            m = dt_nasc[4:6]
-            d = dt_nasc[6:8]
-            dt_nasc = f"{d}/{m}/{a}"  # Formata a data no formato 'dd/mm/yyyy'
+            cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')
+            dt_nasc = (request.POST.get('dt_nasc') or '').replace('-', '')
+            if len(dt_nasc) == 8:
+                a = dt_nasc[0:4]
+                m = dt_nasc[4:6]
+                d = dt_nasc[6:8]
+                dt_nasc = f"{d}/{m}/{a}"  # Formata a data no padrão 'dd/mm/aaaa'
             resp_trabalha = request.POST.get('resp_trabalha')
             flag_conjuge = request.POST.get('flag_conjuge')
             conjuge_trabalha = request.POST.get('conjuge_trabalha')
@@ -210,27 +246,25 @@ def insere_novo_responsavel(request):
             estado = request.POST.get('estado')
             obs = request.POST.get('obs')
 
-            sql1 = "INSERT INTO tb_cadastro_responsavel (id_usuario_cad, pnome, snome, cpf, data_nascimento, flag_responsavel_trabalha, flag_conjuge, flag_conjuge_trabalha, endereco, complemento, bairro, cidade, estado,observacoes)"
-            sql2 = f"VALUES({ escapar(id_fun_cad) }, {escapar(nome)}, {escapar(sobrenome)}, {escapar(cpf)}, {escapar(dt_nasc)}, {escapar(resp_trabalha)}, {escapar(flag_conjuge)}, {escapar(conjuge_trabalha)}, {escapar(endereco)}, {escapar(comp)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(obs)})"
-            result = Conn.executa_insert(sql1+sql2)    
-            if result :    
-                return redirect('lista_responsavel')
-
+            sql1 = "INSERT INTO tb_cadastro_responsavel (id_usuario_cad, pnome, snome, cpf, data_nascimento, flag_responsavel_trabalha, flag_conjuge, flag_conjuge_trabalha, endereco, complemento, bairro, cidade, estado, observacoes) "
+            sql2 = f"VALUES({escapar(id_fun_cad)}, {escapar(nome)}, {escapar(sobrenome)}, {escapar(cpf)}, {escapar(dt_nasc)}, {escapar(resp_trabalha)}, {escapar(flag_conjuge)}, {escapar(conjuge_trabalha)}, {escapar(endereco)}, {escapar(comp)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(obs)})"
+            Conn.executa_insert(sql1 + sql2)
             return redirect('lista_responsavel')
-            
+
         except Exception as e:
             mensagem = f"Erro ao inserir responsável: {e}"
             return pagina_erro(request, mensagem=mensagem)
     else:
-        return render(request,'gerencias/novo_responsavel.html')
+        return render(request, 'gerencias/novo_responsavel.html')
+
 
 @login_required
 def lista_responsavel(request):
-    try:  
-        responsavel = TbCadastroResponsavel.objects.filter(flag_ativo = 'S', flag_validado = 'S') 
+    try:
+        responsavel = TbCadastroResponsavel.objects.filter(flag_ativo='S', flag_validado='S')
         contexto = {
             'dados': responsavel,
-            'titulo': 'Responsável Validados'
+            'titulo': 'Responsáveis Validados'
         }
         return render(request, 'gerencias/lista_responsavel.html', contexto)
     except Exception as e:
@@ -240,11 +274,11 @@ def lista_responsavel(request):
 
 @login_required
 def lista_responsavel_nval(request):
-    try:  
-        responsavel = TbCadastroResponsavel.objects.filter(flag_ativo = 'S', flag_validado = 'N') 
+    try:
+        responsavel = TbCadastroResponsavel.objects.filter(flag_ativo='S', flag_validado='N')
         contexto = {
             'dados': responsavel,
-            'titulo': 'Responsável não Validados'
+            'titulo': 'Responsáveis não Validados'
         }
         return render(request, 'gerencias/lista_responsavel_nval.html', contexto)
     except Exception as e:
@@ -254,24 +288,23 @@ def lista_responsavel_nval(request):
 
 @login_required
 def lista_responsavel_des(request):
-
     try:
-        responsavel = TbCadastroResponsavel.objects.filter(flag_ativo = 'N') 
+        responsavel = TbCadastroResponsavel.objects.filter(flag_ativo='N')
         contexto = {
             'dados': responsavel,
-            'titulo': 'Responsável não Validados'
+            'titulo': 'Responsáveis Desativados'
         }
         return render(request, 'gerencias/lista_responsavel_des.html', contexto)
     except Exception as e:
         mensagem = f"Erro ao listar responsáveis desativados: {e}"
         return pagina_erro(request, mensagem=mensagem)
- 
+
 
 @login_required
 def edit_responsavel(request, id_responsavel):
-    if  request.method == 'POST':
+    if request.method == 'POST':
         try:
-            responsavel = TbCadastroResponsavel.objects.all().filter(pk=id_responsavel)  
+            responsavel = TbCadastroResponsavel.objects.filter(pk=id_responsavel)
             contexto = {
                 'dados': responsavel,
                 'titulo': 'Responsável'
@@ -284,6 +317,7 @@ def edit_responsavel(request, id_responsavel):
         mensagem = f"Erro ao acessar a página de edição de responsável: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def atualiza_responsavel(request):
     if request.method == 'POST':
@@ -291,7 +325,7 @@ def atualiza_responsavel(request):
             responsavel = get_object_or_404(TbCadastroResponsavel, pk=request.POST.get('id_responsavel'))
             responsavel.pnome = request.POST.get('pnome')
             responsavel.snome = request.POST.get('snome')
-            responsavel.cpf = request.POST.get('cpf').replace(".", "").replace("-", "")
+            responsavel.cpf = (request.POST.get('cpf') or '').replace(".", "").replace("-", "")
             responsavel.data_nascimento = request.POST.get('dt_nasc')
             responsavel.flag_responsavel_trabalha = request.POST.get('resp_trabalha')
             responsavel.flag_conjuge = request.POST.get('flag_conjuge')
@@ -318,7 +352,7 @@ def valida_responsavel(request, id_responsavel):
     if request.method == 'POST':
         try:
             responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
-            responsavel.flag_validado = 'S'  
+            responsavel.flag_validado = 'S'
             responsavel.save()
             registros = TbCadastroResponsavel.objects.filter(flag_ativo='N').order_by('-ultima_atualizacao')
             contexto = {
@@ -333,12 +367,13 @@ def valida_responsavel(request, id_responsavel):
         mensagem = f"Erro ao validar responsável: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def desativa_responsavel(request, id_responsavel):
     if request.method == 'POST':
         try:
             responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
-            responsavel.flag_ativo = 'N'  
+            responsavel.flag_ativo = 'N'
             responsavel.save()
             registros = TbCadastroResponsavel.objects.filter(flag_ativo='N').order_by('-ultima_atualizacao')
             contexto = {
@@ -352,18 +387,19 @@ def desativa_responsavel(request, id_responsavel):
     else:
         mensagem = f"Erro ao desativar responsável: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def reativa_responsavel(request, id_responsavel):
     if request.method == 'POST':
-        try:    
+        try:
             responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
-            responsavel.flag_ativo = 'S'  
+            responsavel.flag_ativo = 'S'
             responsavel.save()
             registros = TbCadastroResponsavel.objects.filter(flag_ativo='S').order_by('-ultima_atualizacao')
             contexto = {
                 'dados': registros,
-                'titulo': 'Responsáveis Inativos'
+                'titulo': 'Responsáveis Ativos'
             }
             return render(request, 'gerencias/lista_responsavel.html', contexto)
         except Exception as e:
@@ -373,44 +409,50 @@ def reativa_responsavel(request, id_responsavel):
         mensagem = f"Erro ao reativar responsável: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
-#Bloco Filhos
+
+# ==========================================
+# BLOCO FILHOS (CRIANÇAS)
+# ==========================================
+
 @login_required
 def lista_filhos(request, id_responsavel):
-    try:    
-        registros = TbFilhosResponsavel.objects.all().filter(id_responsavel=id_responsavel,flag_ativo='S').order_by('-data_cadastro')
+    try:
+        registros = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel, flag_ativo='S').order_by('-data_cadastro')
         responsavel = TbCadastroResponsavel.objects.filter(id_responsavel=id_responsavel).first()
-        responsavel_nome = f"{responsavel.pnome} {responsavel.snome}"
+        responsavel_nome = f"{responsavel.pnome} {responsavel.snome}" if responsavel else ""
         contexto = {
             'lista': registros,
             'id_responsavel': id_responsavel,
             'responsavel_nome': responsavel_nome,
-            'titulo': 'Criancas Cadastrados'
+            'titulo': 'Crianças Cadastradas'
         }
         return render(request, 'gerencias/lista_filhos.html', contexto)
     except Exception as e:
         mensagem = f"Erro ao listar filhos do responsável: {e}"
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def lista_filhos_total(request):
     try:
-
         lista = Conn.executa_query(
-            f"SELECT * FROM tb_filhos_responsavel ORDER BY id_responsavel")      
+            "SELECT * FROM tb_filhos_responsavel ORDER BY id_responsavel"
+        )
         return render(request, 'gerencias/lista_filhos_total.html', {'lista': lista})
     except Exception as e:
-        mensagem = f"Erro ao listar filhos do responsável: {e}"
+        mensagem = f"Erro ao listar todas as crianças: {e}"
         return pagina_erro(request, mensagem=mensagem)
-    
+
 
 @login_required
-def desativa_filhos_responsavel(request,id_responsavel):
+def desativa_filhos_responsavel(request, id_responsavel):
     if request.method == 'POST':
         try:
-            lista = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
+            lista = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel)
             for filho in lista:
-                filho.flag_ativo = 'N'  
+                filho.flag_ativo = 'N'
                 filho.save()
+            return redirect('lista_filhos', id_responsavel=id_responsavel)
         except Exception as e:
             mensagem = f"Erro ao desativar filhos do responsável: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -420,13 +462,14 @@ def desativa_filhos_responsavel(request,id_responsavel):
 
 
 @login_required
-def reativa_filhos_responsavel(request,id_responsavel):
+def reativa_filhos_responsavel(request, id_responsavel):
     if request.method == 'POST':
         try:
-            lista = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
+            lista = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel)
             for filho in lista:
-                filho.flag_ativo = 'S'  
+                filho.flag_ativo = 'S'
                 filho.save()
+            return redirect('lista_filhos', id_responsavel=id_responsavel)
         except Exception as e:
             mensagem = f"Erro ao reativar filhos do responsável: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -441,12 +484,13 @@ def desativar_filho(request, id_responsavel):
         try:
             id_filho = request.POST.get('id_filho')
             filho = TbFilhosResponsavel.objects.filter(id_filho=id_filho).first()
-            filho.flag_ativo = 'N'
-            filho.save()
+            if filho:
+                filho.flag_ativo = 'N'
+                filho.save()
             return redirect('lista_filhos', id_responsavel=id_responsavel)
         except Exception as e:
             mensagem = f"Erro ao desativar criança com ID {id_filho}.\n {e}"
-            return pagina_erro(request, mensagem=mensagem)      
+            return pagina_erro(request, mensagem=mensagem)
     else:
         mensagem = f"Erro ao desativar criança: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
@@ -463,15 +507,19 @@ def reativar_filho(request, id_filho):
             return redirect('lista_filhos', id_responsavel=id_responsavel)
         except Exception as e:
             mensagem = f"Erro ao reativar criança com ID {id_filho}.\n {e}"
-            return pagina_erro(request, mensagem=mensagem)      
+            return pagina_erro(request, mensagem=mensagem)
     else:
         mensagem = f"Erro ao reativar criança: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def lista_filhos_responsavel(request):
     try:
-        registros = TbFilhosResponsavel.objects.filter(id_responsavel=request.POST.get('id_responsavel'),flag_ativo='S').order_by('-data_cadastro')
+        registros = TbFilhosResponsavel.objects.filter(
+            id_responsavel=request.POST.get('id_responsavel'),
+            flag_ativo='S'
+        ).order_by('-data_cadastro')
         contexto = {
             'dados': registros,
             'titulo': 'Responsáveis Ativos'
@@ -481,15 +529,16 @@ def lista_filhos_responsavel(request):
         mensagem = f"Erro ao listar filhos do responsável: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
-def novo_filho(request,id_responsavel):
+def novo_filho(request, id_responsavel):
     if request.method == 'POST':
         try:
             registro = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel).first()
             contexto = {
                 'dados': registro,
-                'id_responsavel': id_responsavel,  # Isso é suficiente
-                'titulo': 'Criancas Cadastrados'
+                'id_responsavel': id_responsavel,
+                'titulo': 'Crianças Cadastradas'
             }
             return render(request, 'gerencias/novo_filho.html', contexto)
         except Exception as e:
@@ -499,14 +548,15 @@ def novo_filho(request,id_responsavel):
         mensagem = f"Erro ao acessar a página de cadastro de criança: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def editar_filho(request, id_filho):
-    if request.method == 'POST':        
+    if request.method == 'POST':
         try:
             registro = TbFilhosResponsavel.objects.filter(id_filho=id_filho).first()
             contexto = {
                 'dados': registro,
-                'id_responsavel': registro.id_responsavel,  # Isso é suficiente
+                'id_responsavel': registro.id_responsavel,
                 'titulo': 'Editar Criança'
             }
             return render(request, 'gerencias/editar_filho.html', contexto)
@@ -526,23 +576,25 @@ def insere_novo_filho(request):
             id_usuario_cad = request.user.id
             pnome = request.POST.get('pnome')
             snome = request.POST.get('snome')
-            dt_nasc = request.POST.get('dt_nasc')
-            a = dt_nasc[0:4]
-            m = dt_nasc[4:6]
-            d = dt_nasc[6:8]
-            dt_nasc = f"{d}/{m}/{a}"
-            cpf = request.POST.get('cpf').replace('.', '').replace('-', '')
+            dt_nasc = (request.POST.get('dt_nasc') or '').replace('-', '')
+            if len(dt_nasc) == 8:
+                a = dt_nasc[0:4]
+                m = dt_nasc[4:6]
+                d = dt_nasc[6:8]
+                dt_nasc = f"{d}/{m}/{a}"
+            cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')
             sexo = request.POST.get('sexo')
             roupa = request.POST.get('roupa')
             sapato = request.POST.get('sapato')
             outra_ong = request.POST.get('outra_ong')
 
-            sql1 = "INSERT INTO tb_filhos_responsavel (id_responsavel, id_usuario_cad, pnome, snome, data_nascimento, cpf, sexo, numero_roupa, numero_sapato, cadastro_outra_ong)"
-            sql2 = f"VALUES({ escapar(id_responsavel) }, {escapar(id_usuario_cad)}, {escapar(pnome)}, {escapar(snome)}, {escapar(dt_nasc)}, {escapar(cpf)}, {escapar(sexo)}, {escapar(roupa)}, {escapar(sapato)}, {escapar(outra_ong)})"
-            
-            result = Conn.executa_insert(sql1+sql2)    
-            if result :
-                return redirect('lista_filhos', id_responsavel) 
+            sql1 = "INSERT INTO tb_filhos_responsavel (id_responsavel, id_usuario_cad, pnome, snome, data_nascimento, cpf, sexo, numero_roupa, numero_sapato, cadastro_outra_ong) "
+            sql2 = f"VALUES({escapar(id_responsavel)}, {escapar(id_usuario_cad)}, {escapar(pnome)}, {escapar(snome)}, {escapar(dt_nasc)}, {escapar(cpf)}, {escapar(sexo)}, {escapar(roupa)}, {escapar(sapato)}, {escapar(outra_ong)})"
+
+            result = Conn.executa_insert(sql1 + sql2)
+            if result:
+                return redirect('lista_filhos', id_responsavel)
+            return redirect('lista_filhos', id_responsavel)
         except Exception as e:
             mensagem = f"Erro ao inserir nova criança: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -550,21 +602,23 @@ def insere_novo_filho(request):
         mensagem = f"Erro ao inserir nova criança: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
-def buscar_filhos(request): 
+def buscar_filhos(request):
     resultados = []
     termo_busca = ''
     tipo_busca = 'nome'
-    
+
     if request.method == 'POST':
         termo_busca = request.POST.get('termo_busca', '').strip()
         tipo_busca = request.POST.get('tipo_busca', 'nome')
-        
+
         if termo_busca:
             if tipo_busca == 'nome':
-                # Busca por nome completo
+                # Sanitiza o termo de busca para evitar SQL Injection na consulta LIKE
+                termo_seguro = termo_busca.replace("\\", "\\\\").replace("'", "\\'").replace("%", "\\%")
                 resultados = Conn.executa_query(
-                    f"SELECT * FROM tb_filhos_responsavel WHERE flag_ativo = 'S' AND CONCAT(pnome, ' ', snome) LIKE '%{ termo_busca }%'"
+                    f"SELECT * FROM tb_filhos_responsavel WHERE flag_ativo = 'S' AND CONCAT(pnome, ' ', snome) LIKE '%{termo_seguro}%'"
                 )
                 contexto = {
                     'resultados': resultados,
@@ -577,62 +631,67 @@ def buscar_filhos(request):
                 try:
                     idade_busca = int(termo_busca)
                     todos_filhos = TbFilhosResponsavel.objects.select_related('id_responsavel')
-                    
+
                     for filho in todos_filhos:
                         idade = calcular_idade(filho.data_nascimento)
                         if idade == idade_busca:
                             resultados.append(filho)
-                            
+
                 except ValueError:
                     resultados = []
                     termo_busca = 'Por favor, digite um número válido para idade'
-    
+
     # Adiciona a idade calculada a cada resultado
     for filho in resultados:
         filho.idade = calcular_idade(filho.data_nascimento)
-    
+
     contexto = {
         'resultados': resultados,
         'termo_busca': termo_busca,
         'tipo_busca': tipo_busca,
         'total_resultados': len(resultados),
     }
-    
+
     return render(request, 'gerencias/buscar_filhos.html', contexto)
 
-@login_required
+
+# Função auxiliar para calcular a idade exata a partir da data de nascimento
 def calcular_idade(data_nascimento_str):
     if not data_nascimento_str:
         return None
-    try:    
-        data_nasc = datetime.strptime(data_nascimento_str, '%d/%m/%Y').date()   
+    try:
+        data_nasc = datetime.strptime(data_nascimento_str, '%d/%m/%Y').date()
         hoje = date.today()
-        idade = hoje.year - data_nasc.year   
+        idade = hoje.year - data_nasc.year
         if hoje.month < data_nasc.month or (hoje.month == data_nasc.month and hoje.day < data_nasc.day):
-            idade -= 1       
+            idade -= 1
         return idade
-    except:
+    except Exception:
         return None
 
-#Bloco Oficio
+
+# ==========================================
+# BLOCO OFÍCIOS
+# ==========================================
+
 @login_required
 def insere_novo_oficio(request):
-    if request.method == 'POST':            
+    if request.method == 'POST':
         try:
             criador = request.POST.get('responsavel')
             remetente = request.POST.get('remetente')
             destinatario = request.POST.get('destinatario')
             mensagem = request.POST.get('mensagem')
-            mensagem = f"Mensagem de { remetente } para { destinatario }: "+mensagem
-            sql1 = "INSERT INTO tb_oficios (id_usuario,destinatario,mensagem)"
-            sql2 = f"VALUES({ escapar(criador) }, {escapar(destinatario)}, {escapar(mensagem)})"
-            result = Conn.executa_insert(sql1+sql2)
-            if result :
+            mensagem = f"Mensagem de {remetente} para {destinatario}: {mensagem}"
+            sql1 = "INSERT INTO tb_oficios (id_usuario, destinatario, mensagem) "
+            sql2 = f"VALUES({escapar(criador)}, {escapar(destinatario)}, {escapar(mensagem)})"
+            result = Conn.executa_insert(sql1 + sql2)
+            if result:
                 lista = Conn.executa_query(
-                "SELECT * FROM tb_oficios ORDER BY id_oficio DESC LIMIT 1")
-            
-                return render(request,'gerencias/lista_oficios.html',{ 'lista': lista })
-            
+                    "SELECT * FROM tb_oficios ORDER BY id_oficio DESC LIMIT 1"
+                )
+                return render(request, 'gerencias/lista_oficios.html', {'lista': lista})
+
         except Exception as e:
             mensagem = f"Erro ao inserir novo ofício: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -640,10 +699,10 @@ def insere_novo_oficio(request):
         mensagem = f"Erro ao inserir novo ofício: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
-    
+
 @login_required
 def novo_oficio(request):
-    if request.method == 'POST':                
+    if request.method == 'POST':
         try:
             contexto = {
                 'usuario': request.user,
@@ -688,38 +747,37 @@ def exibe_oficio(request, id_oficio):
         return render(request, 'gerencias/exibe_oficio.html', contexto)
     except Exception as e:
         mensagem = f"Erro ao exibir ofício com ID {id_oficio}.\n {e}"
-        return render(request,'gerencias/pagina_erro.html', {'mensagem': mensagem})
-    
-    
+        return render(request, 'gerencias/pagina_erro.html', {'mensagem': mensagem})
+
+
 @login_required
-def excluir_oficio(request,id_oficio):
+def excluir_oficio(request, id_oficio):
     if request.method == 'POST':
         try:
-            if request.method == 'POST':
-                registro = TbOficios.objects.filter(id_oficio=id_oficio)
-                registro.delete()
-                return render(request,'lista_oficio')
-            else:
-                mensagem = f"Erro ao acessar a página de cadastro de madrinha/padrinho: Método HTTP inválido. Esperado POST, recebido {request.method}."
-                return pagina_erro(request, mensagem=mensagem)
+            registro = TbOficios.objects.filter(id_oficio=id_oficio)
+            registro.delete()
+            return redirect('lista_oficio')
         except Exception as e:
             mensagem = f"Erro ao excluir ofício com ID {id_oficio}.\n {e}"
-            return render(request,'gerencias/pagina_erro.html', {'mensagem': mensagem})
+            return render(request, 'gerencias/pagina_erro.html', {'mensagem': mensagem})
     else:
         mensagem = f"Erro ao excluir ofício: Método HTTP inválido. Esperado POST, recebido {request.method}."
-        return render(request,'gerencias/pagina_erro.html', {'mensagem': mensagem})
+        return render(request, 'gerencias/pagina_erro.html', {'mensagem': mensagem})
 
 
-#Bloco Madrinhas
+# ==========================================
+# BLOCO MADRINHAS E PADRINHOS
+# ==========================================
+
 @login_required
 def novo_madrinha_padrinho(request):
     if request.method == 'POST':
-        try:      
+        try:
             contexto = {
                 'usuario': request.user,
                 'id_usuario_cad': request.POST.get('id_usuario_cad', request.user.id)
             }
-            return render(request,'gerencias/novo_madrinha_padrinho.html', contexto)
+            return render(request, 'gerencias/novo_madrinha_padrinho.html', contexto)
         except Exception as e:
             mensagem = f"Erro ao acessar a página de cadastro de madrinha/padrinho: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -733,7 +791,7 @@ def inserir_madrinha_padrinho(request):
     if request.method == 'POST':
         try:
             id_usuario_cad = request.POST.get('id_usuario_cad')
-            cpf = request.POST.get('cpf').replace('.', '').replace('-', '')  # Remove máscara
+            cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')  # Remove máscara
             flag_anonimo = request.POST.get('flag_anonimo')
             pnome = request.POST.get('pnome')
             snome = request.POST.get('snome')
@@ -744,15 +802,16 @@ def inserir_madrinha_padrinho(request):
             estado = request.POST.get('estado')
             flag_ativo = request.POST.get('flag_ativo')
 
-            sql1 = "INSERT INTO tb_madrinha_padrinho (id_usuario_cad, cpf, flag_anonimo, pnome, snome, endereco, complemento, bairro, cidade, estado, flag_ativo)"
-            sql2 = f"VALUES({ escapar(id_usuario_cad) }, {escapar(cpf)}, {escapar(flag_anonimo)}, {escapar(pnome)}, {escapar(snome)}, {escapar(endereco)}, {escapar(complemento)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(flag_ativo)})"
-            result = Conn.executa_insert(sql1+sql2)
-            
+            sql1 = "INSERT INTO tb_madrinha_padrinho (id_usuario_cad, cpf, flag_anonimo, pnome, snome, endereco, complemento, bairro, cidade, estado, flag_ativo) "
+            sql2 = f"VALUES({escapar(id_usuario_cad)}, {escapar(cpf)}, {escapar(flag_anonimo)}, {escapar(pnome)}, {escapar(snome)}, {escapar(endereco)}, {escapar(complemento)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(flag_ativo)})"
+            result = Conn.executa_insert(sql1 + sql2)
+
             if result:
                 return redirect('lista_madrinha_padrinho')
+            return redirect('lista_madrinha_padrinho')
         except Exception as e:
             mensagem = f"Erro ao inserir madrinha/padrinho: {e}"
-            return pagina_erro(request, mensagem=mensagem) 
+            return pagina_erro(request, mensagem=mensagem)
     else:
         mensagem = f"Erro ao inserir madrinha/padrinho: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
@@ -760,35 +819,40 @@ def inserir_madrinha_padrinho(request):
 
 @login_required
 def lista_madrinha_padrinho(request):
-    try:        
+    try:
         lista = Conn.executa_query(
-            "SELECT * FROM tb_madrinha_padrinho WHERE flag_ativo = 'S' ORDER BY data_cadastro DESC") 
-        return render(request, 'gerencias/listar_madrinhas_padrinhos.html', { 'dados': lista })
+            "SELECT * FROM tb_madrinha_padrinho WHERE flag_ativo = 'S' ORDER BY data_cadastro DESC"
+        )
+        return render(request, 'gerencias/listar_madrinhas_padrinhos.html', {'dados': lista})
     except Exception as e:
         mensagem = f"Erro ao listar madrinhas/padrinhos: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def lista_madrinha_padrinho_desativados(request):
-    try:        
+    try:
         lista = Conn.executa_query(
-            "SELECT * FROM tb_madrinha_padrinho WHERE flag_ativo = 'N' ORDER BY data_cadastro DESC") 
-        return render(request, 'gerencias/listar_madrinhas_padrinhos_desativados.html', { 'dados': lista })
+            "SELECT * FROM tb_madrinha_padrinho WHERE flag_ativo = 'N' ORDER BY data_cadastro DESC"
+        )
+        return render(request, 'gerencias/listar_madrinhas_padrinhos_desativados.html', {'dados': lista})
     except Exception as e:
         mensagem = f"Erro ao listar madrinhas/padrinhos: {e}"
         return pagina_erro(request, mensagem=mensagem)
+
 
 @login_required
 def editar_madrinha_padrinho(request, id_mad_pad):
     try:
         item = Conn.executa_query(
-            f"SELECT * FROM tb_madrinha_padrinho WHERE id_mad_pad = {escapar(id_mad_pad)}")
-        
+            f"SELECT * FROM tb_madrinha_padrinho WHERE id_mad_pad = {escapar(id_mad_pad)}"
+        )
+
         if item and len(item) > 0:
             registro = item[0]
         else:
             registro = None
-            
+
         return render(request, 'gerencias/editar_madrinha_padrinho.html', {'registro': registro})
     except Exception as e:
         mensagem = f"Erro ao acessar a página de edição de madrinha/padrinho: {e}"
@@ -797,7 +861,6 @@ def editar_madrinha_padrinho(request, id_mad_pad):
 
 @login_required
 def atualiza_madrinha_padrinho(request, id_mad_pad):
-
     if request.method == 'POST':
         try:
             registro = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
@@ -814,11 +877,11 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
             registro.save()
             messages.success(request, 'Dados atualizados com sucesso!')
             return redirect('lista_madrinha_padrinho')
-            
+
         except Exception as e:
             mensagem = f"Erro ao atualizar madrinha/padrinho: {e}"
             return pagina_erro(request, mensagem=mensagem)
-            
+
     else:
         mensagem = f"Erro ao atualizar madrinha/padrinho: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
@@ -827,7 +890,7 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
 @login_required
 def reativar_madrinha_padrinho(request, id_mad_pad):
     if request.method == 'POST':
-        try:         
+        try:
             registro = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
             registro.flag_ativo = 'S'
             registro.atualizacao_cad = timezone.now()
@@ -840,22 +903,22 @@ def reativar_madrinha_padrinho(request, id_mad_pad):
     else:
         mensagem = f"Erro ao reativar madrinha/padrinho: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def api_salvar_madrinha_padrinho(request):
     if request.method == 'POST':
         try:
-            # Pega dados JSON
-            import json
+            # Recebe os dados no formato JSON
             dados = json.loads(request.body)
-            
+
             cpf = dados.get('cpf', '').replace('.', '').replace('-', '')
-            
-            # Valida CPF duplicado
+
+            # Valida se o CPF já está cadastrado
             if TbMadrinhaPadrinho.objects.filter(cpf=cpf).exists():
-                mensagem = f"Error: CPF {cpf} já cadastrado!"
+                mensagem = f"Erro: CPF {cpf} já cadastrado!"
                 return pagina_erro(request, mensagem=mensagem)
-            
+
             novo = TbMadrinhaPadrinho.objects.create(
                 id_usuario_cad=request.user,
                 cpf=cpf,
@@ -870,25 +933,26 @@ def api_salvar_madrinha_padrinho(request):
                 data_cadastro=timezone.now(),
                 flag_ativo='S'
             )
-            
+
             return JsonResponse({
                 'success': True,
                 'id': novo.id_mad_pad,
                 'message': 'Cadastro realizado com sucesso'
             })
-            
+
         except Exception as e:
             mensagem = f"Erro ao salvar madrinha/padrinho via API: {e}"
             return pagina_erro(request, mensagem=mensagem)
-    
+
     else:
         mensagem = f"Erro ao salvar madrinha/padrinho via API: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def apadrinhar_crianca(request, id_mad_pad):
-    if  request.method == 'POST':
-        try:    
+    if request.method == 'POST':
+        try:
             registro = TbMadrinhaPadrinho.objects.filter(id_mad_pad=id_mad_pad).first()
             criancas = TbFilhosResponsavel.objects.filter(flag_ativo='S').order_by('pnome')
             contexto = {
@@ -903,17 +967,18 @@ def apadrinhar_crianca(request, id_mad_pad):
     else:
         mensagem = f"Erro ao acessar a página de apadrinhamento: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
-        
+
+
 @login_required
 def vincular_mad_pad_crianca(request):
-    if  request.method == 'POST':        
+    if request.method == 'POST':
         try:
             id_mad_pad = request.POST.get('id_mad_pad')
             id_filho = request.POST.get('id_filho')
-            sql1 = "INSERT INTO tb_apadrinhamento_crianca (id_mad_pad, id_filho)"
-            sql2 = f"VALUES({ escapar(id_mad_pad) }, {escapar(id_filho) })"
-            result = Conn.executa_insert(sql1+sql2)
-            return render(request, 'lista_apadrinhamento')
+            sql1 = "INSERT INTO tb_apadrinhamento_crianca (id_mad_pad, id_filho) "
+            sql2 = f"VALUES({escapar(id_mad_pad)}, {escapar(id_filho)})"
+            Conn.executa_insert(sql1 + sql2)
+            return redirect('lista_apadrinhamento')
         except Exception as e:
             mensagem = f"Erro ao vincular madrinha/padrinho à criança: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -924,39 +989,43 @@ def vincular_mad_pad_crianca(request):
 
 @login_required
 def lista_apadrinhamento(request):
-    try:        
+    try:
         apadrinhamento = TbApadrinhamentoCrianca.objects.all().order_by('-data_cadastro')
-        return render(request,'gerencias/lista_apadrinhamentos.html',{'registros':apadrinhamento})
+        return render(request, 'gerencias/lista_apadrinhamentos.html', {'registros': apadrinhamento})
     except Exception as e:
         mensagem = f"Erro ao listar apadrinhamentos: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
 
-#Bloco Eventos
+# ==========================================
+# BLOCO EVENTOS E ENTREGAS
+# ==========================================
+
 @login_required
 def listar_eventos(request):
     try:
-        sql = "SELECT * FROM tb_evento ORDER BY data_evento DESC" 
-        lista = Conn.executa_query(sql)      
-        #eventos = TbEvento.objects.all().order_by('-data_evento')
+        sql = "SELECT * FROM tb_evento ORDER BY data_evento DESC"
+        lista = Conn.executa_query(sql)
         return render(request, 'gerencias/listar_eventos.html', {'lista': lista})
     except Exception as e:
         mensagem = f"Erro ao listar eventos: {e}"
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def novo_evento(request):
-    try:        
+    try:
         return render(request, 'gerencias/novo_evento.html')
     except Exception as e:
-        mensagem = f"Erro ao listar eventos: {e}"
+        mensagem = f"Erro ao acessar página de novo evento: {e}"
         return pagina_erro(request, mensagem=mensagem)
+
 
 @login_required
 def atualiza_evento(request, id_evento):
     if request.method == 'POST':
         try:
-            evento = TbEvento.objects.get(id_evento=id_evento)        
+            evento = TbEvento.objects.get(id_evento=id_evento)
             evento.nome = request.POST.get('nome')
             evento.data_evento = request.POST.get('data_evento')
             evento.endereco = request.POST.get('endereco')
@@ -966,14 +1035,15 @@ def atualiza_evento(request, id_evento):
             evento.flag_finalizado = request.POST.get('flag_finalizado')
             evento.save()
             return redirect('listar_eventos')
-            
+
         except Exception as e:
             mensagem = f"Erro ao atualizar evento: {e}"
             return pagina_erro(request, mensagem=mensagem)
-    
+
     else:
         mensagem = f"Erro ao atualizar evento: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
+
 
 @login_required
 def insere_novo_evento(request):
@@ -995,7 +1065,7 @@ def insere_novo_evento(request):
                 messages.error(request, 'Formato de data inválido. Use dd/mm/aaaa.')
                 return redirect('novo_evento')
 
-            evento = TbEvento.objects.create(
+            TbEvento.objects.create(
                 nome=nome,
                 data_evento=data_evento,
                 endereco=endereco,
@@ -1005,9 +1075,9 @@ def insere_novo_evento(request):
                 flag_finalizado=flag_finalizado,
                 data_cadastro=timezone.now()
             )
-            
+
             return redirect('listar_eventos')
-            
+
         except Exception as e:
             mensagem = f"Erro ao inserir novo evento: {e}"
             return pagina_erro(request, mensagem=mensagem)
@@ -1015,18 +1085,19 @@ def insere_novo_evento(request):
         mensagem = f"Erro ao inserir novo evento: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
 
+
 @login_required
 def editar_evento(request, id_evento):
     try:
         evento = TbEvento.objects.get(id_evento=id_evento)
         contexto = {
             'registro': evento
-        }  
+        }
         return render(request, 'gerencias/editar_evento.html', contexto)
     except Exception as e:
         mensagem = f"Erro ao editar evento: {e}"
         return pagina_erro(request, mensagem=mensagem)
-    
+
 
 @login_required
 def finalizar_evento(request, id_evento):
@@ -1035,7 +1106,7 @@ def finalizar_evento(request, id_evento):
             evento = TbEvento.objects.get(id_evento=id_evento)
             evento.flag_finalizado = 'S'
             evento.save()
- 
+
             return redirect('listar_eventos')
         except Exception as e:
             mensagem = f"Erro ao finalizar evento: {e}"
@@ -1043,16 +1114,18 @@ def finalizar_evento(request, id_evento):
     else:
         mensagem = f"Erro ao finalizar evento: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def listar_entregas(request):
     try:
         entregas = TbEntrega.objects.all().order_by('-id_evento')
-        return render(request, 'gerencias/listar_entregas.html', {'lista':entregas})
+        return render(request, 'gerencias/listar_entregas.html', {'lista': entregas})
     except Exception as e:
         mensagem = f"Erro ao listar entregas do evento: {e}"
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def nova_entrega(request):
     try:
@@ -1069,35 +1142,35 @@ def nova_entrega(request):
         mensagem = f"Erro ao acessar a página de nova entrega: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
-    
+
 @login_required
 def insere_nova_entrega(request):
-    #reps = request.POST.get('id_mad_pad')
-    #return HttpResponse(reps)
     if request.method == 'POST':
         try:
             id_evento = request.POST.get('id_evento')
             id_filho = request.POST.get('id_crianca')
             id_mad_pad = request.POST.get('id_mad_pad')
-              
+
             evento = TbEvento.objects.filter(id_evento=id_evento).first()
-            endereco = evento.endereco
-            bairro = evento.bairro
-            cidade = evento.cidade
-            estado = evento.estado
-            # Criar nova entrega
-            sql1 = f"INSERT INTO tb_entrega (id_evento,id_mad_pad,id_crianca,endereco,cidade,bairro,estado)"
-            sql2 = f"VALUES({escapar(id_evento)},{escapar(id_mad_pad)},{escapar(id_filho)},{escapar(endereco)},{escapar(cidade)},{escapar(bairro)},{escapar(estado)})"
-            res = Conn.executa_insert(sql1+sql2)
+            endereco = evento.endereco if evento else ''
+            bairro = evento.bairro if evento else ''
+            cidade = evento.cidade if evento else ''
+            estado = evento.estado if evento else ''
+
+            # Insere a nova entrega vinculada ao evento
+            sql1 = "INSERT INTO tb_entrega (id_evento, id_mad_pad, id_crianca, endereco, cidade, bairro, estado) "
+            sql2 = f"VALUES({escapar(id_evento)}, {escapar(id_mad_pad)}, {escapar(id_filho)}, {escapar(endereco)}, {escapar(cidade)}, {escapar(bairro)}, {escapar(estado)})"
+            Conn.executa_insert(sql1 + sql2)
             return redirect('listar_entregas')
-            
+
         except Exception as e:
             mensagem = f"Erro ao inserir nova entrega: {e}"
             return pagina_erro(request, mensagem=mensagem)
     else:
         mensagem = f"Erro ao inserir nova entrega: Método HTTP inválido. Esperado POST, recebido {request.method}."
         return pagina_erro(request, mensagem=mensagem)
-    
+
+
 @login_required
 def editar_entrega(request, id_entrega):
     try:

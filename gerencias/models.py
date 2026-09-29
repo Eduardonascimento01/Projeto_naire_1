@@ -1,34 +1,43 @@
 from django.db import models
+from django.conf import settings
 import mysql.connector
 
-#Classe de conexao
-class Conn(models.Model):
-    def executa_query(consulta):
-        mydb = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="1234",
-            database="bd_naire2"
+
+# Classe de conexão otimizada e segura
+class Conn:
+    @staticmethod
+    def _get_connection():
+        db_conf = settings.DATABASES['default']
+        return mysql.connector.connect(
+            host=db_conf.get('HOST', 'localhost'),
+            user=db_conf.get('USER', 'root'),
+            password=db_conf.get('PASSWORD', '1234'),
+            database=db_conf.get('NAME', 'bd_naire2'),
+            port=db_conf.get('PORT', '3306')
         )
-        mycursor = mydb.cursor()
-        mycursor = mydb.cursor(dictionary=True)
-        mycursor.execute(consulta)
-        myresult = mycursor.fetchall()
-        mydb.close()
-        return myresult
-    
-    def executa_insert(consulta):
-        mydb = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="1234",
-            database="bd_naire2"
-        )
-        mycursor = mydb.cursor()
-        mycursor.execute(consulta)
-        mydb.commit()
-        mydb.close()
-        return mycursor.lastrowid
+
+    @staticmethod
+    def executa_query(consulta, params=None):
+        mydb = Conn._get_connection()
+        try:
+            mycursor = mydb.cursor(dictionary=True)
+            mycursor.execute(consulta, params or ())
+            myresult = mycursor.fetchall()
+            return myresult
+        finally:
+            mydb.close()
+
+    @staticmethod
+    def executa_insert(consulta, params=None):
+        mydb = Conn._get_connection()
+        try:
+            mycursor = mydb.cursor()
+            mycursor.execute(consulta, params or ())
+            mydb.commit()
+            return mycursor.lastrowid
+        finally:
+            mydb.close()
+
 
 class AuthUser(models.Model):
     password = models.CharField(max_length=128)
@@ -46,9 +55,25 @@ class AuthUser(models.Model):
         managed = False
         db_table = 'auth_user'
 
+    def __str__(self):
+        return self.username
+
+
+class TbTipoFuncionario(models.Model):
+    id_tipo = models.AutoField(primary_key=True)
+    descricao = models.CharField(unique=True, max_length=45)
+
+    class Meta:
+        managed = False
+        db_table = 'tb_tipo_funcionario'
+
+    def __str__(self):
+        return self.descricao
+
+
 class TbFuncionario(models.Model):
     id_funcionario = models.AutoField(primary_key=True)
-    id_tipo = models.ForeignKey('TbTipoFuncionario', models.DO_NOTHING, db_column='id_tipo')
+    id_tipo = models.ForeignKey(TbTipoFuncionario, models.DO_NOTHING, db_column='id_tipo')
     pnome = models.CharField(max_length=255)
     snome = models.CharField(max_length=255)
     cpf = models.CharField(max_length=11)
@@ -64,14 +89,9 @@ class TbFuncionario(models.Model):
         managed = False
         db_table = 'tb_funcionario'
 
+    def __str__(self):
+        return f"{self.pnome} {self.snome}"
 
-class TbTipoFuncionario(models.Model):
-    id_tipo = models.AutoField(primary_key=True)
-    descricao = models.CharField(unique=True, max_length=45)
-
-    class Meta:
-        managed = False
-        db_table = 'tb_tipo_funcionario'
 
 class TbCadastroResponsavel(models.Model):
     id_responsavel = models.AutoField(primary_key=True)
@@ -100,36 +120,11 @@ class TbCadastroResponsavel(models.Model):
         managed = False
         db_table = 'tb_cadastro_responsavel'
 
-class TbCadastroResponsavel(models.Model):
-    id_responsavel = models.AutoField(primary_key=True)
-    id_usuario_cad = models.ForeignKey(AuthUser, models.DO_NOTHING, db_column='id_usuario_cad', blank=True, null=True)
-    data_cadastro = models.DateTimeField(blank=True, null=True)
-    ultima_atualizacao = models.DateTimeField(blank=True, null=True)
-    pnome = models.CharField(max_length=100, blank=True, null=True)
-    snome = models.CharField(max_length=255, blank=True, null=True)
-    cpf = models.CharField(unique=True, max_length=11)
-    titulo = models.CharField(max_length=45, blank=True, null=True)
-    data_nascimento = models.CharField(max_length=10, blank=True, null=True)
-    flag_responsavel_trabalha = models.CharField(max_length=1, blank=True, null=True)
-    flag_conjuge = models.CharField(max_length=1, blank=True, null=True)
-    flag_conjuge_trabalha = models.CharField(max_length=1, blank=True, null=True)
-    endereco = models.CharField(max_length=255, blank=True, null=True)
-    complemento = models.CharField(max_length=255, blank=True, null=True)
-    bairro = models.CharField(max_length=255)
-    cidade = models.CharField(max_length=255)
-    estado = models.CharField(max_length=2)
-    url_image_familia = models.CharField(max_length=255, blank=True, null=True)
-    flag_validado = models.CharField(max_length=1, blank=True, null=True)
-    flag_ativo = models.CharField(max_length=1, blank=True, null=True)
-    observacoes = models.CharField(max_length=255, blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'tb_cadastro_responsavel'
+    def __str__(self):
+        return f"{self.pnome or ''} {self.snome or ''}".strip()
 
 
 class TbFilhosResponsavel(models.Model):
-    #pk = models.CompositePrimaryKey('id_filho', 'id_responsavel')
     id_filho = models.AutoField(primary_key=True)
     id_responsavel = models.ForeignKey(TbCadastroResponsavel, models.DO_NOTHING, db_column='id_responsavel')
     id_usuario_cad = models.ForeignKey(AuthUser, models.DO_NOTHING, db_column='id_usuario_cad', blank=True, null=True)
@@ -150,6 +145,10 @@ class TbFilhosResponsavel(models.Model):
         managed = False
         db_table = 'tb_filhos_responsavel'
 
+    def __str__(self):
+        return f"{self.pnome or ''} {self.snome or ''}".strip()
+
+
 class TbOficios(models.Model):
     id_oficio = models.AutoField(primary_key=True)
     data_criacao = models.DateTimeField(blank=True, null=True)
@@ -160,6 +159,10 @@ class TbOficios(models.Model):
     class Meta:
         managed = False
         db_table = 'tb_oficios'
+
+    def __str__(self):
+        return f"Ofício #{self.id_oficio} - {self.destinatario}"
+
 
 class TbMadrinhaPadrinho(models.Model):
     id_mad_pad = models.AutoField(primary_key=True)
@@ -181,15 +184,20 @@ class TbMadrinhaPadrinho(models.Model):
         managed = False
         db_table = 'tb_madrinha_padrinho'
 
+    def __str__(self):
+        return f"{self.pnome or ''} {self.snome or ''}".strip()
+
+
 class TbApadrinhamentoCrianca(models.Model):
-    id_apadrinhamento = models.IntegerField(primary_key=True)
-    id_mad_pad = models.ForeignKey('TbMadrinhaPadrinho', models.DO_NOTHING, db_column='id_mad_pad')
-    id_filho = models.ForeignKey('TbFilhosResponsavel', models.DO_NOTHING, db_column='id_filho')
+    id_apadrinhamento = models.AutoField(primary_key=True)
+    id_mad_pad = models.ForeignKey(TbMadrinhaPadrinho, models.DO_NOTHING, db_column='id_mad_pad')
+    id_filho = models.ForeignKey(TbFilhosResponsavel, models.DO_NOTHING, db_column='id_filho')
     data_cadastro = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'tb_apadrinhamento_crianca'
+
 
 class TbEntrega(models.Model):
     id_entrega = models.AutoField(primary_key=True)
@@ -208,6 +216,7 @@ class TbEntrega(models.Model):
         managed = False
         db_table = 'tb_entrega'
 
+
 class TbEvento(models.Model):
     id_evento = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=255)
@@ -222,3 +231,6 @@ class TbEvento(models.Model):
     class Meta:
         managed = False
         db_table = 'tb_evento'
+
+    def __str__(self):
+        return f"{self.nome} ({self.data_evento})"
