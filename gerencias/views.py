@@ -28,14 +28,6 @@ import re
 from datetime import datetime, date
 
 
-# Função auxiliar para sanitizar valores e prevenir injeção de SQL (SQL Injection)
-def escapar(valor):
-    if valor is None:
-        return 'NULL'
-    texto_limpo = str(valor).replace("\\", "\\\\").replace("'", "\\'")
-    return f"'{texto_limpo}'"
-
-
 # Classe para criação de novos usuários com senha criptografada (Bcrypt/PBKDF2)
 class userCreateView(CreateView):
     model = User
@@ -47,7 +39,6 @@ class userCreateView(CreateView):
     def form_valid(self, form):
         # Criptografa a senha utilizando o algoritmo principal definido no settings.py (Bcrypt)
         form.instance.password = make_password(form.instance.password)
-        form.save()
         messages.success(self.request, self.success_message)
         return super(userCreateView, self).form_valid(form)
 
@@ -116,12 +107,15 @@ def insere_novo_funcionario(request):
             estado = request.POST.get('estado')
             flag = request.POST.get('flag')
 
-            sql1 = "INSERT INTO tb_funcionario (id_tipo, pnome, snome, cpf, telefone, endereco, complemento, bairro, cidade, estado, flag_ativo) "
-            sql2 = f"VALUES({escapar(tp_m)}, {escapar(pnome)}, {escapar(snome)}, {escapar(cpf)}, {escapar(telefone)}, {escapar(rua_n)}, {escapar(comp)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(flag)})"
-            result = Conn.executa_insert(sql1 + sql2)
+            sql = "INSERT INTO tb_funcionario (id_tipo, pnome, snome, cpf, telefone, endereco, complemento, bairro, cidade, estado, flag_ativo) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            result = Conn.executa_insert(
+                sql,
+                (tp_m, pnome, snome, cpf, telefone, rua_n, comp, bairro, cidade, estado, flag)
+            )
 
             func = Conn.executa_query(
-                f"SELECT * FROM tb_funcionario WHERE id_funcionario = {escapar(result)}"
+                "SELECT * FROM tb_funcionario WHERE id_funcionario = %s",
+                (result,)
             )
             return render(request, 'gerencias/lista_funcionarios.html', {'lista': func})
         else:
@@ -136,8 +130,10 @@ def insere_novo_funcionario(request):
 def desativa_funcionario(request, id_funcionario):
     try:
         if request.method == 'POST':
-            sql = f"UPDATE tb_funcionario SET flag_ativo = 'N' WHERE id_funcionario = {escapar(id_funcionario)}"
-            Conn.executa_insert(sql)
+            Conn.executa_insert(
+                "UPDATE tb_funcionario SET flag_ativo = 'N' WHERE id_funcionario = %s",
+                (id_funcionario,)
+            )
             func = Conn.executa_query(
                 "SELECT * FROM tb_funcionario WHERE flag_ativo = 'S'"
             )
@@ -154,10 +150,13 @@ def desativa_funcionario(request, id_funcionario):
 def reativa_funcionario(request, id_funcionario):
     try:
         if request.method == 'POST':
-            sql = f"UPDATE tb_funcionario SET flag_ativo = 'S' WHERE id_funcionario = {escapar(id_funcionario)}"
-            Conn.executa_insert(sql)
+            Conn.executa_insert(
+                "UPDATE tb_funcionario SET flag_ativo = 'S' WHERE id_funcionario = %s",
+                (id_funcionario,)
+            )
             func = Conn.executa_query(
-                f"SELECT * FROM tb_funcionario WHERE id_funcionario = {escapar(id_funcionario)}"
+                "SELECT * FROM tb_funcionario WHERE id_funcionario = %s",
+                (id_funcionario,)
             )
             return render(request, 'gerencias/lista_funcionarios.html', {'lista': func})
         else:
@@ -246,9 +245,12 @@ def insere_novo_responsavel(request):
             estado = request.POST.get('estado')
             obs = request.POST.get('obs')
 
-            sql1 = "INSERT INTO tb_cadastro_responsavel (id_usuario_cad, pnome, snome, cpf, data_nascimento, flag_responsavel_trabalha, flag_conjuge, flag_conjuge_trabalha, endereco, complemento, bairro, cidade, estado, observacoes) "
-            sql2 = f"VALUES({escapar(id_fun_cad)}, {escapar(nome)}, {escapar(sobrenome)}, {escapar(cpf)}, {escapar(dt_nasc)}, {escapar(resp_trabalha)}, {escapar(flag_conjuge)}, {escapar(conjuge_trabalha)}, {escapar(endereco)}, {escapar(comp)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(obs)})"
-            Conn.executa_insert(sql1 + sql2)
+            sql = "INSERT INTO tb_cadastro_responsavel (id_usuario_cad, pnome, snome, cpf, data_nascimento, flag_responsavel_trabalha, flag_conjuge, flag_conjuge_trabalha, endereco, complemento, bairro, cidade, estado, observacoes) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            Conn.executa_insert(
+                sql,
+                (id_fun_cad, nome, sobrenome, cpf, dt_nasc, resp_trabalha, flag_conjuge,
+                 conjuge_trabalha, endereco, comp, bairro, cidade, estado, obs)
+            )
             return redirect('lista_responsavel')
 
         except Exception as e:
@@ -588,12 +590,11 @@ def insere_novo_filho(request):
             sapato = request.POST.get('sapato')
             outra_ong = request.POST.get('outra_ong')
 
-            sql1 = "INSERT INTO tb_filhos_responsavel (id_responsavel, id_usuario_cad, pnome, snome, data_nascimento, cpf, sexo, numero_roupa, numero_sapato, cadastro_outra_ong) "
-            sql2 = f"VALUES({escapar(id_responsavel)}, {escapar(id_usuario_cad)}, {escapar(pnome)}, {escapar(snome)}, {escapar(dt_nasc)}, {escapar(cpf)}, {escapar(sexo)}, {escapar(roupa)}, {escapar(sapato)}, {escapar(outra_ong)})"
-
-            result = Conn.executa_insert(sql1 + sql2)
-            if result:
-                return redirect('lista_filhos', id_responsavel)
+            sql = "INSERT INTO tb_filhos_responsavel (id_responsavel, id_usuario_cad, pnome, snome, data_nascimento, cpf, sexo, numero_roupa, numero_sapato, cadastro_outra_ong) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            Conn.executa_insert(
+                sql,
+                (id_responsavel, id_usuario_cad, pnome, snome, dt_nasc, cpf, sexo, roupa, sapato, outra_ong)
+            )
             return redirect('lista_filhos', id_responsavel)
         except Exception as e:
             mensagem = f"Erro ao inserir nova criança: {e}"
@@ -615,10 +616,9 @@ def buscar_filhos(request):
 
         if termo_busca:
             if tipo_busca == 'nome':
-                # Sanitiza o termo de busca para evitar SQL Injection na consulta LIKE
-                termo_seguro = termo_busca.replace("\\", "\\\\").replace("'", "\\'").replace("%", "\\%")
                 resultados = Conn.executa_query(
-                    f"SELECT * FROM tb_filhos_responsavel WHERE flag_ativo = 'S' AND CONCAT(pnome, ' ', snome) LIKE '%{termo_seguro}%'"
+                    "SELECT * FROM tb_filhos_responsavel WHERE flag_ativo = 'S' AND CONCAT(pnome, ' ', snome) LIKE %s",
+                    (f"%{termo_busca}%",)
                 )
                 contexto = {
                     'resultados': resultados,
@@ -683,9 +683,8 @@ def insere_novo_oficio(request):
             destinatario = request.POST.get('destinatario')
             mensagem = request.POST.get('mensagem')
             mensagem = f"Mensagem de {remetente} para {destinatario}: {mensagem}"
-            sql1 = "INSERT INTO tb_oficios (id_usuario, destinatario, mensagem) "
-            sql2 = f"VALUES({escapar(criador)}, {escapar(destinatario)}, {escapar(mensagem)})"
-            result = Conn.executa_insert(sql1 + sql2)
+            sql = "INSERT INTO tb_oficios (id_usuario, destinatario, mensagem) VALUES (%s, %s, %s)"
+            result = Conn.executa_insert(sql, (criador, destinatario, mensagem))
             if result:
                 lista = Conn.executa_query(
                     "SELECT * FROM tb_oficios ORDER BY id_oficio DESC LIMIT 1"
@@ -702,19 +701,15 @@ def insere_novo_oficio(request):
 
 @login_required
 def novo_oficio(request):
-    if request.method == 'POST':
-        try:
-            contexto = {
-                'usuario': request.user,
-                'id_usuario_cad': request.user.id,
-                'username': request.user.username
-            }
-            return render(request, 'gerencias/novo_oficio.html', contexto)
-        except Exception as e:
-            mensagem = f"Erro ao acessar a página de cadastro de ofício: {e}"
-            return pagina_erro(request, mensagem=mensagem)
-    else:
-        mensagem = f"Erro ao acessar a página de cadastro de ofício: Método HTTP inválido. Esperado POST, recebido {request.method}."
+    try:
+        contexto = {
+            'usuario': request.user,
+            'id_usuario_cad': request.user.id,
+            'username': request.user.username
+        }
+        return render(request, 'gerencias/novo_oficio.html', contexto)
+    except Exception as e:
+        mensagem = f"Erro ao acessar a página de cadastro de ofício: {e}"
         return pagina_erro(request, mensagem=mensagem)
 
 
@@ -802,12 +797,11 @@ def inserir_madrinha_padrinho(request):
             estado = request.POST.get('estado')
             flag_ativo = request.POST.get('flag_ativo')
 
-            sql1 = "INSERT INTO tb_madrinha_padrinho (id_usuario_cad, cpf, flag_anonimo, pnome, snome, endereco, complemento, bairro, cidade, estado, flag_ativo) "
-            sql2 = f"VALUES({escapar(id_usuario_cad)}, {escapar(cpf)}, {escapar(flag_anonimo)}, {escapar(pnome)}, {escapar(snome)}, {escapar(endereco)}, {escapar(complemento)}, {escapar(bairro)}, {escapar(cidade)}, {escapar(estado)}, {escapar(flag_ativo)})"
-            result = Conn.executa_insert(sql1 + sql2)
-
-            if result:
-                return redirect('lista_madrinha_padrinho')
+            sql = "INSERT INTO tb_madrinha_padrinho (id_usuario_cad, cpf, flag_anonimo, pnome, snome, endereco, complemento, bairro, cidade, estado, flag_ativo) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            Conn.executa_insert(
+                sql,
+                (id_usuario_cad, cpf, flag_anonimo, pnome, snome, endereco, complemento, bairro, cidade, estado, flag_ativo)
+            )
             return redirect('lista_madrinha_padrinho')
         except Exception as e:
             mensagem = f"Erro ao inserir madrinha/padrinho: {e}"
@@ -845,7 +839,8 @@ def lista_madrinha_padrinho_desativados(request):
 def editar_madrinha_padrinho(request, id_mad_pad):
     try:
         item = Conn.executa_query(
-            f"SELECT * FROM tb_madrinha_padrinho WHERE id_mad_pad = {escapar(id_mad_pad)}"
+            "SELECT * FROM tb_madrinha_padrinho WHERE id_mad_pad = %s",
+            (id_mad_pad,)
         )
 
         if item and len(item) > 0:
@@ -975,9 +970,8 @@ def vincular_mad_pad_crianca(request):
         try:
             id_mad_pad = request.POST.get('id_mad_pad')
             id_filho = request.POST.get('id_filho')
-            sql1 = "INSERT INTO tb_apadrinhamento_crianca (id_mad_pad, id_filho) "
-            sql2 = f"VALUES({escapar(id_mad_pad)}, {escapar(id_filho)})"
-            Conn.executa_insert(sql1 + sql2)
+            sql = "INSERT INTO tb_apadrinhamento_crianca (id_mad_pad, id_filho) VALUES (%s, %s)"
+            Conn.executa_insert(sql, (id_mad_pad, id_filho))
             return redirect('lista_apadrinhamento')
         except Exception as e:
             mensagem = f"Erro ao vincular madrinha/padrinho à criança: {e}"
@@ -1063,6 +1057,11 @@ def insere_novo_evento(request):
 
             if not re.match(r'^\d{2}/\d{2}/\d{4}$', data_evento):
                 messages.error(request, 'Formato de data inválido. Use dd/mm/aaaa.')
+                return redirect('novo_evento')
+            try:
+                datetime.strptime(data_evento, '%d/%m/%Y')
+            except ValueError:
+                messages.error(request, 'Data inválida. Informe uma data existente.')
                 return redirect('novo_evento')
 
             TbEvento.objects.create(
@@ -1158,9 +1157,11 @@ def insere_nova_entrega(request):
             estado = evento.estado if evento else ''
 
             # Insere a nova entrega vinculada ao evento
-            sql1 = "INSERT INTO tb_entrega (id_evento, id_mad_pad, id_crianca, endereco, cidade, bairro, estado) "
-            sql2 = f"VALUES({escapar(id_evento)}, {escapar(id_mad_pad)}, {escapar(id_filho)}, {escapar(endereco)}, {escapar(cidade)}, {escapar(bairro)}, {escapar(estado)})"
-            Conn.executa_insert(sql1 + sql2)
+            sql = "INSERT INTO tb_entrega (id_evento, id_mad_pad, id_crianca, endereco, cidade, bairro, estado) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            Conn.executa_insert(
+                sql,
+                (id_evento, id_mad_pad, id_filho, endereco, cidade, bairro, estado)
+            )
             return redirect('listar_entregas')
 
         except Exception as e:
@@ -1175,16 +1176,48 @@ def insere_nova_entrega(request):
 def editar_entrega(request, id_entrega):
     try:
         entrega = TbEntrega.objects.get(id_entrega=id_entrega)
-        evento = entrega.id_evento
+        eventos = TbEvento.objects.all().order_by('-id_evento')
         criancas = TbFilhosResponsavel.objects.filter(flag_ativo='S').order_by('pnome')
         madrinhas_padrinhos = TbMadrinhaPadrinho.objects.filter(flag_ativo='S').order_by('pnome')
         contexto = {
             'entrega': entrega,
-            'evento': evento,
+            'eventos': eventos,
             'criancas': criancas,
             'madrinhas_padrinhos': madrinhas_padrinhos
         }
         return render(request, 'gerencias/editar_entrega.html', contexto)
     except Exception as e:
         mensagem = f"Erro ao acessar a página de edição de entrega: {e}"
+        return pagina_erro(request, mensagem=mensagem)
+
+
+@login_required
+def atualiza_entrega(request, id_entrega):
+    if request.method != 'POST':
+        mensagem = f"Erro ao atualizar entrega: Método HTTP inválido. Esperado POST, recebido {request.method}."
+        return pagina_erro(request, mensagem=mensagem)
+
+    try:
+        entrega = get_object_or_404(TbEntrega, id_entrega=id_entrega)
+        evento = get_object_or_404(TbEvento, id_evento=request.POST.get('id_evento'))
+        madrinha_padrinho = get_object_or_404(
+            TbMadrinhaPadrinho,
+            id_mad_pad=request.POST.get('id_mad_pad')
+        )
+        crianca = get_object_or_404(
+            TbFilhosResponsavel,
+            id_filho=request.POST.get('id_crianca')
+        )
+
+        entrega.id_evento = evento.id_evento
+        entrega.id_mad_pad = madrinha_padrinho.id_mad_pad
+        entrega.id_crianca = crianca.id_filho
+        entrega.endereco = evento.endereco
+        entrega.bairro = evento.bairro
+        entrega.cidade = evento.cidade
+        entrega.estado = evento.estado
+        entrega.save()
+        return redirect('listar_entregas')
+    except Exception as e:
+        mensagem = f"Erro ao atualizar entrega: {e}"
         return pagina_erro(request, mensagem=mensagem)
