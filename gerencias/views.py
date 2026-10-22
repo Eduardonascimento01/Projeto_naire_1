@@ -1,7 +1,11 @@
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import user_passes_test
+
+# Esta função substitui o login_required padrão e agora exige que o usuário seja Administrador (is_staff)
+def login_required(function=None):
+    return user_passes_test(lambda u: u.is_authenticated and (u.is_staff or u.is_superuser))(function)
 from django.views.generic.edit import CreateView
 from django.urls import reverse_lazy
 from django.contrib.auth.hashers import make_password
@@ -225,7 +229,8 @@ def novo_responsavel(request):
 def insere_novo_responsavel(request):
     if request.method == 'POST':
         try:
-            id_fun_cad = request.POST.get('id_usuario_cad')
+            # SEGURANÇA: Pega o ID de quem realmente está logado no sistema
+            id_fun_cad = request.user.id
             nome = request.POST.get('pnome')
             sobrenome = request.POST.get('snome')
             cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')
@@ -678,8 +683,9 @@ def calcular_idade(data_nascimento_str):
 def insere_novo_oficio(request):
     if request.method == 'POST':
         try:
-            criador = request.POST.get('responsavel')
-            remetente = request.POST.get('remetente')
+            # SEGURANÇA: Bloqueia injeção e força o ofício a sair no nome do usuário logado
+            criador = request.user.id
+            remetente = request.user.username
             destinatario = request.POST.get('destinatario')
             mensagem = request.POST.get('mensagem')
             mensagem = f"Mensagem de {remetente} para {destinatario}: {mensagem}"
@@ -785,11 +791,20 @@ def novo_madrinha_padrinho(request):
 def inserir_madrinha_padrinho(request):
     if request.method == 'POST':
         try:
-            id_usuario_cad = request.POST.get('id_usuario_cad')
-            cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')  # Remove máscara
-            flag_anonimo = request.POST.get('flag_anonimo')
-            pnome = request.POST.get('pnome')
-            snome = request.POST.get('snome')
+            # SEGURANÇA: Autoria real
+            id_usuario_cad = request.user.id
+            cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')  
+            # Remove máscara
+            flag_anonimo = request.POST.get('flag_anonimo', 'N')
+            
+            # SEGURANÇA: Se marcou anônimo, oculta os dados verdadeiros antes de gravar no banco
+            if flag_anonimo == 'S':
+                pnome = 'Anônimo'
+                snome = ''
+            else:
+                pnome = request.POST.get('pnome')
+                snome = request.POST.get('snome')
+                
             endereco = request.POST.get('endereco')
             complemento = request.POST.get('complemento')
             bairro = request.POST.get('bairro')
@@ -915,7 +930,7 @@ def api_salvar_madrinha_padrinho(request):
                 return pagina_erro(request, mensagem=mensagem)
 
             novo = TbMadrinhaPadrinho.objects.create(
-                id_usuario_cad=request.user,
+                id_usuario_cad_id=request.user.id,
                 cpf=cpf,
                 flag_anonimo=dados.get('flag_anonimo', 'N'),
                 pnome=dados.get('pnome'),
