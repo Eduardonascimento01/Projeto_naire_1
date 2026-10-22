@@ -6,14 +6,20 @@ from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in {'true', '1', 'yes'}
+
+# Se não estiver em DEBUG (desenvolvimento), o sistema QUEBRA se não houver uma chave segura
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     if not DEBUG:
-        raise ImproperlyConfigured('Defina DJANGO_SECRET_KEY fora do modo DEBUG.')
+        raise ImproperlyConfigured('CRÍTICO: Defina DJANGO_SECRET_KEY no ambiente de produção.')
     SECRET_KEY = 'django-insecure-local-development-only-key'
 
 # CHAVE CRIPTOGRÁFICA (Protege CPFs e dados sensíveis gerados pelo django-cryptography)
-CRYPTOGRAPHY_KEY = os.environ.get('CRYPTOGRAPHY_KEY', 'chave-super-secreta-ong-naire-2026')
+CRYPTOGRAPHY_KEY = os.environ.get('CRYPTOGRAPHY_KEY')
+if not CRYPTOGRAPHY_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured('CRÍTICO: Defina CRYPTOGRAPHY_KEY no ambiente de produção.')
+    CRYPTOGRAPHY_KEY = 'chave-super-secreta-ong-naire-2026'
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -61,13 +67,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'setup.wsgi.application'
 
-# Configuração do Banco de Dados (MySQL)
+# Configuração do Banco de Dados (MySQL) blindada contra credenciais padrão
+DB_USER = os.environ.get('DB_USER')
+DB_PASSWORD = os.environ.get('DB_PASSWORD')
+
+if not DEBUG and (DB_USER in [None, 'root', ''] or DB_PASSWORD in [None, '1234', '']):
+    raise ImproperlyConfigured('CRÍTICO: Não utilize root, senhas em branco ou padrões genéricos em produção.')
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': os.environ.get('DB_NAME', 'bd_naire2'),
-        'USER': os.environ.get('DB_USER', 'root'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'USER': DB_USER or 'root', # Aceita root apenas localmente (DEBUG=True)
+        'PASSWORD': DB_PASSWORD or '', 
         'HOST': os.environ.get('DB_HOST', 'localhost'),  # ou o IP do servidor
         'PORT': os.environ.get('DB_PORT', '3306'),
     }
