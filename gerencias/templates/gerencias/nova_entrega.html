@@ -76,7 +76,12 @@
                                 <select name="id_mad_pad" class="form-select form-select-lg shadow-sm" required>
                                     <option value="" disabled selected>Selecione o apoiador</option>
                                     {% for apoiador in mad_pad %}
-                                        <option value="{{ apoiador.id_mad_pad }}">{{ apoiador.pnome }} {{ apoiador.snome }} {% if apoiador.flag_anonimo == 'S' %}(Anônimo){% endif %}</option>
+                                        <!-- SEGURANÇA LGPD: Mascara Padrinho se anônimo no HTML -->
+                                        {% if apoiador.flag_anonimo == 'S' %}
+                                            <option value="{{ apoiador.id_mad_pad }}">*** (Anônimo) ***</option>
+                                        {% else %}
+                                            <option value="{{ apoiador.id_mad_pad }}">{{ apoiador.pnome }} {{ apoiador.snome }}</option>
+                                        {% endif %}
                                     {% endfor %}
                                 </select>
                                 <small class="text-muted">Selecione o madrinha/padrinho que está realizando a entrega</small>
@@ -90,7 +95,8 @@
                                 <select name="id_crianca" class="form-select form-select-lg shadow-sm" required>
                                     <option value="" disabled selected>Selecione a criança</option>
                                     {% for crianca in criancas %}
-                                        <option value="{{ crianca.id_filho }}">{{ crianca.pnome }} {{ crianca.snome }}</option>
+                                        <!-- SEGURANÇA LGPD: Oculta o sobrenome da criança no HTML -->
+                                        <option value="{{ crianca.id_filho }}">{{ crianca.pnome }} ***</option>
                                     {% endfor %}
                                 </select>
                                 <small class="text-muted">Selecione a criança que receberá a entrega</small>
@@ -294,6 +300,8 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('novaEntregaForm');
+        
         // Máscara para Data e Hora de Chegada
         const dataChegadaInput = document.getElementById('data_chegada');
         if (dataChegadaInput) {
