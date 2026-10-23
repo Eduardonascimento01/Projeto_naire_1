@@ -1,10 +1,12 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from django.views.generic import RedirectView
 
 urlpatterns = [
     path('',views.home,name='home'),
     path('logout/', auth_views.LogoutView.as_view(next_page=''), name='logout'),
+    path('signup/', RedirectView.as_view(url='/admin/'), name='signup'),
     
     # ROTA DE CADASTRO PÚBLICO REMOVIDA POR SEGURANÇA (CRÍTICO-01 / ALTO-03)
     # A criação de usuários da ONG agora deve ser feita exclusivamente via Admin

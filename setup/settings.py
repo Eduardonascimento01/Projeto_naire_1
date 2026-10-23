@@ -1,6 +1,9 @@
 from pathlib import Path
 import os
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Constrói os caminhos dentro do projeto, por exemplo: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -124,6 +127,7 @@ STATICFILES_DIRS = [
 # ==============================================================================
 # POLÍTICAS DE SEGURANÇA AVANÇADA (WAF Interno, Bloqueio XSS e Blindagem)
 # ==============================================================================
+# Segurança de Cookies (Seguro: False no localhost, True em produção)
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
@@ -132,10 +136,11 @@ CSRF_COOKIE_SECURE = not DEBUG
 # Barrar clickjacking (incorporação do site em iframes maliciosos)
 X_FRAME_OPTIONS = 'DENY'
 
-# Prevenir MIME-Type sniffing (evita injeção de scripts ocultos)
+# Proteção contra XSS e Sniffing (MIME-Type)
+SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# Forçar HTTPS (HSTS) - Ativado automaticamente quando não estiver em DEBUG (produção)
+# Forçar HTTPS (HSTS) - Ativado automaticamente em produção (DEBUG=False)
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000  # 1 ano
@@ -143,3 +148,8 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
+# Tempo de expiração curta para a sessão (Requisito 5 - Tokens Seguros)
+# Desloga o usuário após 1 hora (3600 segundos) de inatividade
+SESSION_COOKIE_AGE = 3600
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
