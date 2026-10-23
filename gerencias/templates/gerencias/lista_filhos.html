@@ -120,7 +120,7 @@
                     <tr>
                         <th scope="col" class="px-4">#ID</th>
                         <th scope="col">👤 NOME</th>
-                        <th scope="col">🎂 DT NASC</th>
+                        <th scope="col">🎂 ANO NASC</th>
                         <th scope="col">🆔 CPF</th>
                         <th scope="col">⚧ SEXO</th>
                         <th scope="col">👕 ROUPA</th>
@@ -151,13 +151,15 @@
                         </td>
                         <td>
                             <i class="bi bi-calendar3 text-muted"></i>
-                            {{ filho.data_nascimento|date:"d/m/Y"|default:"—" }}
+                            <!-- SEGURANÇA: Mascaramento da data exata de nascimento da criança (LGPD) -->
+                            **/**/{{ filho.data_nascimento|date:"Y"|default:"—" }}
                             <br>
                             <small class="text-muted" id="idade-{{ filho.id_filho }}"></small>
                         </td>
                         <td>
                             {% if filho.cpf %}
-                                <code>{{ filho.cpf|slice:":3" }}.{{ filho.cpf|slice:"3:6" }}.{{ filho.cpf|slice:"6:9" }}-{{ filho.cpf|slice:"9:11" }}</code>
+                                <!-- SEGURANÇA: Máscara LGPD no CPF -->
+                                <code>{{ filho.cpf|slice:":3" }}.***.***-{{ filho.cpf|slice:"9:11" }}</code>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
@@ -525,14 +527,6 @@
                     e.preventDefault();
                 }
             });
-        });
-        
-        // Formatação de CPF nos elementos existentes
-        document.querySelectorAll('code').forEach(el => {
-            let cpf = el.textContent.replace(/\D/g, '');
-            if (cpf.length === 11) {
-                el.textContent = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-            }
         });
     });
 </script>
