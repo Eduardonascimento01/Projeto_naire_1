@@ -128,7 +128,7 @@
                         <th scope="col" class="px-4">#ID</th>
                         <th scope="col"># RESP</th> 
                         <th scope="col">👤 NOME</th>
-                        <th scope="col">🎂 DT NASC</th>
+                        <th scope="col">🎂 ANO NASC</th>
                         <th scope="col">🆔 CPF</th>
                         <th scope="col">⚧ SEXO</th>
                         <th scope="col">👕 ROUPA</th>
@@ -163,13 +163,15 @@
                         </td>
                         <td>
                             <i class="bi bi-calendar3 text-muted"></i>
-                            {{ filho.data|date:"d/m/Y"|default:"—" }}
+                            <!-- SEGURANÇA: Mascaramento da data exata de nascimento (LGPD) -->
+                            **/**/{{ filho.data|date:"Y"|default:"—" }}
                             <br>
                             <small class="text-muted idade-text" data-nasc="{{ filho.data }}"></small>
                         </td>
                         <td>
                             {% if filho.cpf %}
-                                <code class="cpf-display">{{ filho.cpf }}</code>
+                                <!-- SEGURANÇA: Máscara LGPD no CPF -->
+                                <code>{{ filho.cpf|slice:":3" }}.***.***-{{ filho.cpf|slice:"9:11" }}</code>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
@@ -232,7 +234,7 @@
                                         data-id="{{ filho.id_filho }}"
                                         data-nome="{{ filho.pnome }} {{ filho.snome }}">
                                         {% csrf_token %}
-                                        <input type="hidden" name="id_filho" value="{{ilho.id_filho}}">
+                                        <input type="hidden" name="id_filho" value="{{filho.id_filho}}">
                                         <button type="submit" 
                                                 class="btn btn-outline-success btn-sm reativar-btn"
                                                 data-bs-toggle="tooltip" 
@@ -267,11 +269,7 @@
                     Mostrando <strong id="visibleCount">{{ lista|length }}</strong> de <strong id="totalCount">{{ lista|length }}</strong> filhos
                 </p>
             </div>
-            <div class="col-md-6 text-md-end">
-                <button class="btn btn-outline-primary btn-sm" id="exportBtn">
-                    <i class="bi bi-download"></i> Exportar Lista
-                </button>
-            </div>
+            <!-- Botão de Exportação CSV Removido por Segurança (MÉDIO-02) -->
         </div>
     </div>
 </div>
@@ -459,26 +457,18 @@
             return idade;
         }
         
-        // Função para formatar CPF
-        function formatarCPF(cpf) {
-            const numbers = cpf.replace(/\D/g, '');
-            if (numbers.length === 11) {
-                return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-            }
-            return cpf;
-        }
-        
         // Calcular estatísticas e formatar
         const rows = document.querySelectorAll('.filho-row');
         let meninos = 0;
         let meninas = 0;
         let outraOng = 0;
+        let totalIdade = 0;
+        let countIdade = 0;
         
         rows.forEach(row => {
             const sexo = row.getAttribute('data-sexo');
             const outraOngValue = row.getAttribute('data-outra-ong');
             const dataNasc = row.getAttribute('data-nascimento');
-            const cpfElement = row.querySelector('.cpf-display');
             
             // Contagem por sexo
             if (sexo === 'M') meninos++;
@@ -487,14 +477,12 @@
             // Contagem outra ONG
             if (outraOngValue === 'S' || outraOngValue === 'Sim') outraOng++;
             
-            // Formatar CPF
-            if (cpfElement && cpfElement.textContent) {
-                cpfElement.textContent = formatarCPF(cpfElement.textContent);
-            }
-            
             // Calcular e exibir idade
             if (dataNasc) {
                 const idade = calcularIdade(dataNasc);
+                totalIdade += idade;
+                countIdade++;
+                
                 const idadeSpan = row.querySelector('.idade-text');
                 if (idadeSpan && idade !== null && idade >= 0) {
                     idadeSpan.textContent = `${idade} ${idade === 1 ? 'ano' : 'anos'}`;
@@ -566,40 +554,6 @@
                     e.preventDefault();
                 }
             });
-        });
-        
-        // Exportar lista
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.filho-row:visible');
-            let csvContent = "ID,Nome,ID Responsável,Data Nascimento,Idade,CPF,Sexo,Roupa,Sapato,Outra ONG,Data Cadastro\n";
-            
-            visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
-                const nome = row.cells[1]?.querySelector('strong')?.textContent || '';
-                const idResp = row.cells[1]?.querySelector('small')?.textContent.replace('Resp: #', '') || '';
-                const dataNasc = row.cells[2]?.textContent.split('\n')[0].trim() || '';
-                const idade = row.querySelector('.idade-text')?.textContent || '';
-                const cpf = row.cells[3]?.textContent.replace(/\./g, '').replace(/-/g, '') || '';
-                const sexo = row.cells[4]?.textContent.trim() || '';
-                const roupa = row.cells[5]?.textContent.replace('👕', '').trim() || '';
-                const sapato = row.cells[6]?.textContent.replace('👞', '').trim() || '';
-                const outraOng = row.cells[7]?.textContent.includes('Sim') ? 'Sim' : 'Não';
-                const dataCadastro = row.cells[8]?.textContent.trim() || '';
-                
-                csvContent += `${id},"${nome}",${idResp},"${dataNasc}","${idade}",${cpf},"${sexo}","${roupa}","${sapato}",${outraOng},"${dataCadastro}"\n`;
-            });
-            
-            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.href = url;
-            link.setAttribute('download', 'todos_filhos.csv');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            alert('✅ Lista exportada com sucesso!');
         });
     });
 </script>
