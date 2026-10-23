@@ -25,7 +25,7 @@
                         <form action="{% url 'novo_responsavel' %}" method="post" class="mt-2">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-person-plus-fill"></i> Nvo responsável
+                                <i class="bi bi-person-plus-fill"></i> Novo responsável
                             </button>
                         </form>
                     </div>
@@ -170,12 +170,14 @@
                             </div>
                         </td>
                         <td>
-                            <code>{{ item.cpf|slice:":3" }}.{{ item.cpf|slice:"3:6" }}.{{ item.cpf|slice:"6:9" }}-{{ item.cpf|slice:"9:11" }}</code>
+                            <!-- SEGURANÇA: Máscara LGPD no CPF -->
+                            <code>{{ item.cpf|slice:":3" }}.***.***-{{ item.cpf|slice:"9:11" }}</code>
                         </td>
                         <td>
+                            <!-- SEGURANÇA: Endereço minimizado LGPD -->
                             <small>
                                 <i class="bi bi-geo-alt-fill text-muted"></i>
-                                {{ item.endereco }}{% if item.complemento %}, {{ item.complemento }}{% endif %}
+                                *** (Oculto - LGPD) ***
                                 <br>
                                 <i class="bi bi-pin-map-fill text-muted"></i>
                                 {{ item.bairro }}
@@ -272,11 +274,7 @@
                     Mostrando <strong id="visibleCount">{{ dados|length }}</strong> de <strong id="totalCount">{{ dados|length }}</strong> responsáveis
                 </p>
             </div>
-            <div class="col-md-6 text-md-end">
-                <button class="btn btn-outline-primary btn-sm" id="exportBtn">
-                    <i class="bi bi-download"></i> Exportar Lista
-                </button>
-            </div>
+            <!-- Botão Exportar removido (SEGURANÇA: MÉDIO-02) -->
         </div>
     </div>
 </div>
@@ -469,14 +467,6 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Formatação de CPF nos elementos existentes
-        document.querySelectorAll('code').forEach(el => {
-            let cpf = el.textContent.replace(/\D/g, '');
-            if (cpf.length === 11) {
-                el.textContent = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-            }
-        });
-        
         // Calcular estatísticas
         const rows = document.querySelectorAll('.responsavel-row');
         let validados = 0;
@@ -551,38 +541,6 @@
                     e.preventDefault();
                 }
             });
-        });
-        
-        // Exportar lista
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.responsavel-row:visible');
-            let csvContent = "ID,Nome,CPF,Cidade,UF,Validado,Trabalha,Casado,Data Cadastro\n";
-            
-            visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
-                const nome = row.cells[2]?.querySelector('strong')?.textContent || '';
-                const cpf = row.cells[3]?.textContent.replace(/\./g, '').replace(/-/g, '') || '';
-                const cidade = row.getAttribute('data-cidade') || '';
-                const uf = row.cells[5]?.textContent.split('/')[1] || '';
-                const validado = row.cells[8]?.textContent.includes('Validado') ? 'Sim' : 'Não';
-                const trabalha = row.cells[6]?.textContent.includes('Sim') ? 'Sim' : 'Não';
-                const casado = row.cells[7]?.textContent.includes('Sim') ? 'Sim' : 'Não';
-                const dataCadastro = row.cells[1]?.textContent.trim() || '';
-                
-                csvContent += `${id},"${nome}",${cpf},"${cidade}",${uf},${validado},${trabalha},${casado},"${dataCadastro}"\n`;
-            });
-            
-            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.href = url;
-            link.setAttribute('download', 'responsaveis.csv');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            alert('✅ Lista exportada com sucesso!');
         });
     });
 </script>
