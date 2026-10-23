@@ -5,7 +5,10 @@ from . import views
 urlpatterns = [
     path('',views.home,name='home'),
     path('logout/', auth_views.LogoutView.as_view(next_page=''), name='logout'),
-    path('gerencias/signup/', views.userCreateView.as_view(),name='signup'),
+    
+    # ROTA DE CADASTRO PÚBLICO REMOVIDA POR SEGURANÇA (CRÍTICO-01 / ALTO-03)
+    # A criação de usuários da ONG agora deve ser feita exclusivamente via Admin
+    
     path('gerencias/pagina_erro/', views.pagina_erro, name='pagina_erro'),
     
     path('gerencias/novo_funcionario/',views.novo_funcionario, name='novo_funcionario'),
