@@ -234,3 +234,18 @@ class TbEvento(models.Model):
 
     def __str__(self):
         return f"{self.nome} ({self.data_evento})"
+
+class TbLogAuditoria(models.Model):
+    id_log = models.AutoField(primary_key=True)
+    usuario = models.CharField(max_length=150, blank=True, null=True)
+    acao = models.CharField(max_length=50)
+    rota = models.CharField(max_length=255)
+    ip = models.CharField(max_length=50, blank=True, null=True)
+    data_hora = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = True
+        db_table = 'tb_log_auditoria'
+
+    def __str__(self):
+        return f"{self.data_hora} - {self.usuario} - {self.acao} - {self.rota}"

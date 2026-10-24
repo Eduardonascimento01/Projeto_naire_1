@@ -944,3 +944,85 @@ def atualiza_entrega(request, id_entrega):
         return redirect('listar_entregas')
     except Exception as e:
         return pagina_erro(request, mensagem=f"Erro: {e}")
+
+# ==========================================
+# BLOCO DIREITOS DO TITULAR (LGPD)
+# ==========================================
+import json
+from django.core.serializers.json import DjangoJSONEncoder
+
+@login_required
+def exportar_dados_titular(request, id_mad_pad):
+    """
+    LGPD Cap. III - Direito à Portabilidade
+    Gera um arquivo JSON com todos os dados que a ONG possui sobre o Padrinho/Madrinha
+    """
+    try:
+        titular = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
+        
+        # Coleta os dados do titular
+        dados = {
+            "Nome": titular.pnome,
+            "Sobrenome": titular.snome,
+            "Endereco": f"{titular.endereco}, {titular.complemento} - {titular.bairro}, {titular.cidade}/{titular.estado}",
+            "Data_Cadastro": titular.data_cadastro,
+            "Status_Ativo": titular.flag_ativo,
+            "Criancas_Apadrinhadas": []
+        }
+
+        # Coleta o histórico de crianças vinculadas a este padrinho
+        vinculos = TbApadrinhamentoCrianca.objects.filter(id_mad_pad=id_mad_pad)
+        for v in vinculos:
+            dados["Criancas_Apadrinhadas"].append({
+                "Nome_Crianca": v.id_filho.pnome,
+                "Data_Vinculo": v.data_cadastro
+            })
+
+        # Retorna o arquivo para download
+        response = JsonResponse(dados, encoder=DjangoJSONEncoder, json_dumps_params={'ensure_ascii': False, 'indent': 4})
+        response['Content-Disposition'] = f'attachment; filename="dados_padrinho_{id_mad_pad}.json"'
+        return response
+
+    except Exception as e:
+        return pagina_erro(request, mensagem=f"Erro ao exportar dados: {e}")
+
+@login_required
+def anonimizar_titular(request, id_mad_pad):
+    """
+    LGPD Cap. III - Direito ao Esquecimento (Anonimização)
+    Remove dados identificáveis (Nome e CPF) mas mantém o histórico do padrinho na ONG.
+    """
+    if request.method == 'POST':
+        try:
+            titular = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
+            
+            # Sobrescreve os dados identificáveis
+            titular.pnome = "Titular"
+            titular.snome = "Anonimizado (LGPD)"
+            # A função encrypt não aceita valores nulos se não for configurada para isso, 
+            # então enviamos um código genérico padrão para apagar o CPF real.
+            titular.cpf = "00000000000" 
+            titular.endereco = "Dado Removido"
+            titular.complemento = ""
+            titular.telefone = "Dado Removido"
+            titular.flag_anonimo = 'S'
+            titular.flag_ativo = 'N' # Desativa o acesso
+            
+            titular.save()
+            
+            # Log de segurança para provar que a ONG atendeu ao pedido
+            TbLogAuditoria.objects.create(
+                usuario=request.user.username,
+                acao='ANONIMIZACAO_LGPD',
+                rota=f'/padrinhos/{id_mad_pad}',
+                ip=request.META.get('REMOTE_ADDR')
+            )
+            
+            messages.success(request, 'Dados do titular anonimizados com sucesso, conforme exigência da LGPD.')
+            return redirect('lista_madrinha_padrinho')
+            
+        except Exception as e:
+            return pagina_erro(request, mensagem=f"Erro ao anonimizar titular: {e}")
+    else:
+        return pagina_erro(request, mensagem="Método inválido.")
+

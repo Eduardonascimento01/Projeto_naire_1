@@ -62,6 +62,8 @@ urlpatterns = [
     path('gerencias/vincular_mad_pad_crianca/', views.vincular_mad_pad_crianca, name='vincular_mad_pad_crianca'),
     path('gerencias/reativar_madrinha_padrinho/<int:id_mad_pad>/', views.reativar_madrinha_padrinho, name='reativar_madrinha_padrinho'),
     path('gerencias/lista_apadrinhamento/', views.lista_apadrinhamento, name='lista_apadrinhamento'),
+    path('gerencias/exportar_dados_titular/<int:id_mad_pad>/', views.exportar_dados_titular, name='exportar_dados_titular'),
+    path('gerencias/anonimizar_titular/<int:id_mad_pad>/', views.anonimizar_titular, name='anonimizar_titular'),
 
 
     path('gerencias/novo_evento/', views.novo_evento, name='novo_evento'),

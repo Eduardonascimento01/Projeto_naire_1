@@ -221,6 +221,21 @@
                                         <i class="bi bi-pencil-square"></i> Editar
                                     </button>
                                 </form>
+								
+								<!-- BOTÕES DE PRIVACIDADE (LGPD) - VISÍVEIS APENAS PARA A DIRETORIA -->
+								{% if request.user.is_superuser %}
+								<a href="{% url 'exportar_dados_titular' item.id_mad_pad %}" 	class="btn btn-info btn-sm" title="Exportar Dados LGPD">
+									<i class="bi bi-download"></i> Exportar JSON
+								</a>
+								
+								<form action="{% url 'anonimizar_titular' item.id_mad_pad %}" method="POST" style="display: inline-block;">
+									{% csrf_token %}
+									<button type="submit" class="btn btn-danger btn-sm" title="Anonimizar Titular LGPD" onclick="return confirm('ATENÇÃO (LGPD): Tem certeza que deseja anonimizar este titular? O nome e CPF serão apagados para sempre. Esta ação não pode ser desfeita.');">
+										<i class="bi bi-trash"></i> Anonimizar
+									</button>
+								</form>
+								{% endif %}
+															
                             </div>
                         </td>
                     </tr>
