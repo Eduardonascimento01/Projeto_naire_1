@@ -171,12 +171,25 @@
                                         <i class="bi bi-person-x-fill"></i> Desativar
                                     </button>
                                 </form>
+
+                                <!-- BOTÕES LGPD - VISÍVEIS APENAS PARA A DIRETORIA -->
+                                {% if request.user.is_superuser %}
+                                    <a href="{% url 'exportar_dados_funcionario' funcionario.id_funcionario %}" class="btn btn-info btn-sm text-white" data-bs-toggle="tooltip" title="Exportar Dados LGPD">
+                                        <i class="bi bi-download"></i> LGPD
+                                    </a>
+                                    <form action="{% url 'anonimizar_funcionario' funcionario.id_funcionario %}" method="POST" style="display: inline-block;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-dark btn-sm" data-bs-toggle="tooltip" title="Anonimizar Funcionário" onclick="return confirm('ATENÇÃO (LGPD): Deseja anonimizar este funcionário? Nome e CPF serão apagados para sempre.');">
+                                            <i class="bi bi-incognito"></i> Anonimizar
+                                        </button>
+                                    </form>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="text-center py-5">
+                        <td colspan="9" class="text-center py-5">
                             <i class="bi bi-inbox display-1 text-muted"></i>
                             <p class="mt-3 text-muted">Nenhum funcionário cadastrado ainda.</p>
                             <form action="{% url 'cadastrar_funcionario' %}" method="POST" style="display: inline-block;">

@@ -21,7 +21,11 @@ urlpatterns = [
     path('gerencias/desativa_funcionario/<int:id_funcionario>',views.desativa_funcionario, name='desativa_funcionario'),
     path('gerencias/reativa_funcionario/<int:id_funcionario>',views.reativa_funcionario, name='reativa_funcionario'),
     path('gerencias/lista_funcionarios_desativados/',views.lista_funcionarios_desativos, name='lista_funcionarios_desativos'),
-
+    path('gerencias/exportar_dados_funcionario/<int:id_funcionario>/', views.exportar_dados_funcionario, name='exportar_dados_funcionario'),
+    path('gerencias/anonimizar_funcionario/<int:id_funcionario>/', views.anonimizar_funcionario, name='anonimizar_funcionario'),
+    
+    path('gerencias/exportar_dados_responsavel/<int:id_responsavel>/', views.exportar_dados_responsavel, name='exportar_dados_responsavel'),
+    path('gerencias/anonimizar_responsavel/<int:id_responsavel>/', views.anonimizar_responsavel, name='anonimizar_responsavel'),
 
     path('gerencias/novo_responsavel/',views.novo_responsavel, name='novo_responsavel'),
     path('gerencias/insere_responsavel/', views.insere_novo_responsavel, name='insere_novo_responsavel'),

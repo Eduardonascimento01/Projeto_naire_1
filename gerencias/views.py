@@ -1026,3 +1026,70 @@ def anonimizar_titular(request, id_mad_pad):
     else:
         return pagina_erro(request, mensagem="Método inválido.")
 
+# ==========================================
+# LGPD - FUNCIONÁRIOS E RESPONSÁVEIS
+# ==========================================
+
+@login_required
+def exportar_dados_funcionario(request, id_funcionario):
+    try:
+        func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+        dados = {
+            "Nome": func.pnome, "Sobrenome": func.snome,
+            "Telefone": func.telefone, "Endereco": func.endereco,
+            "Bairro": func.bairro, "Cidade": func.cidade, "Estado": func.estado,
+            "Status_Ativo": func.flag_ativo
+        }
+        response = JsonResponse(dados, encoder=DjangoJSONEncoder, json_dumps_params={'ensure_ascii': False, 'indent': 4})
+        response['Content-Disposition'] = f'attachment; filename="dados_funcionario_{id_funcionario}.json"'
+        return response
+    except Exception as e:
+        return pagina_erro(request, mensagem=f"Erro ao exportar dados: {e}")
+
+@login_required
+def anonimizar_funcionario(request, id_funcionario):
+    if request.method == 'POST':
+        try:
+            func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+            func.pnome, func.snome = "Funcionário", "Anonimizado (LGPD)"
+            func.cpf = "00000000000"
+            func.telefone, func.endereco, func.complemento = "Removido", "Removido", ""
+            func.flag_ativo = 'N'
+            func.save()
+            TbLogAuditoria.objects.create(usuario=request.user.username, acao='ANONIMIZACAO_FUNC', rota=f'/func/{id_funcionario}', ip=request.META.get('REMOTE_ADDR'))
+            return redirect('lista_funcionarios')
+        except Exception as e:
+            return pagina_erro(request, mensagem=f"Erro ao anonimizar: {e}")
+    return pagina_erro(request, mensagem="Método inválido.")
+
+@login_required
+def exportar_dados_responsavel(request, id_responsavel):
+    try:
+        resp = get_object_or_404(TbCadastroResponsavel, id_responsavel=id_responsavel)
+        dados = {
+            "Nome": resp.pnome, "Sobrenome": resp.snome,
+            "Data_Nascimento": resp.data_nascimento,
+            "Endereco": resp.endereco, "Bairro": resp.bairro, "Cidade": resp.cidade,
+            "Status_Ativo": resp.flag_ativo
+        }
+        response = JsonResponse(dados, encoder=DjangoJSONEncoder, json_dumps_params={'ensure_ascii': False, 'indent': 4})
+        response['Content-Disposition'] = f'attachment; filename="dados_responsavel_{id_responsavel}.json"'
+        return response
+    except Exception as e:
+        return pagina_erro(request, mensagem=f"Erro ao exportar dados: {e}")
+
+@login_required
+def anonimizar_responsavel(request, id_responsavel):
+    if request.method == 'POST':
+        try:
+            resp = get_object_or_404(TbCadastroResponsavel, id_responsavel=id_responsavel)
+            resp.pnome, resp.snome = "Responsável", "Anonimizado (LGPD)"
+            resp.cpf, resp.data_nascimento = "00000000000", "01/01/1900"
+            resp.endereco, resp.complemento = "Removido", ""
+            resp.flag_ativo = 'N'
+            resp.save()
+            TbLogAuditoria.objects.create(usuario=request.user.username, acao='ANONIMIZACAO_RESP', rota=f'/resp/{id_responsavel}', ip=request.META.get('REMOTE_ADDR'))
+            return redirect('lista_responsavel')
+        except Exception as e:
+            return pagina_erro(request, mensagem=f"Erro ao anonimizar: {e}")
+    return pagina_erro(request, mensagem="Método inválido.")
