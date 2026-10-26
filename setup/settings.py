@@ -162,7 +162,7 @@ INSTALLED_APPS.append('axes')
 MIDDLEWARE.append('axes.middleware.AxesMiddleware')
 
 AUTHENTICATION_BACKENDS = [
-    'axes.backends.AxesStandaloneBackend',
+    'axes.backends.AxesBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
