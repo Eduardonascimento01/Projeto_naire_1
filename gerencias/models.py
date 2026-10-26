@@ -1,7 +1,7 @@
+from django_cryptography.fields import encrypt
 from django.db import models
 from django.conf import settings
 import mysql.connector
-
 
 # Classe de conexão otimizada e segura
 class Conn:
@@ -76,7 +76,10 @@ class TbFuncionario(models.Model):
     id_tipo = models.ForeignKey(TbTipoFuncionario, models.DO_NOTHING, db_column='id_tipo')
     pnome = models.CharField(max_length=255)
     snome = models.CharField(max_length=255)
-    cpf = models.CharField(max_length=11)
+    
+    # CRIPTOGRAFIA ATIVADA AQUI
+    cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    
     endereco = models.CharField(max_length=255)
     telefone = models.CharField(max_length=45, blank=True, null=True)
     complemento = models.CharField(max_length=255, blank=True, null=True)
@@ -100,7 +103,10 @@ class TbCadastroResponsavel(models.Model):
     ultima_atualizacao = models.DateTimeField(blank=True, null=True)
     pnome = models.CharField(max_length=100, blank=True, null=True)
     snome = models.CharField(max_length=255, blank=True, null=True)
-    cpf = models.CharField(unique=True, max_length=11)
+    
+    # CRIPTOGRAFIA ATIVADA AQUI
+    cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    
     titulo = models.CharField(max_length=45, blank=True, null=True)
     data_nascimento = models.CharField(max_length=10, blank=True, null=True)
     flag_responsavel_trabalha = models.CharField(max_length=1, blank=True, null=True)
@@ -131,7 +137,10 @@ class TbFilhosResponsavel(models.Model):
     pnome = models.CharField(max_length=100, blank=True, null=True)
     snome = models.CharField(max_length=255, blank=True, null=True)
     data_nascimento = models.CharField(max_length=10, blank=True, null=True)
-    cpf = models.CharField(max_length=11, blank=True, null=True)
+    
+    # CRIPTOGRAFIA ATIVADA AQUI
+    cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    
     sexo = models.CharField(max_length=2, blank=True, null=True)
     numero_roupa = models.CharField(max_length=15, blank=True, null=True)
     numero_sapato = models.IntegerField(blank=True, null=True)
@@ -167,7 +176,10 @@ class TbOficios(models.Model):
 class TbMadrinhaPadrinho(models.Model):
     id_mad_pad = models.AutoField(primary_key=True)
     id_usuario_cad = models.ForeignKey(AuthUser, models.DO_NOTHING, db_column='id_usuario_cad', blank=True, null=True)
-    cpf = models.CharField(unique=True, max_length=11, blank=True, null=True)
+    
+    # CRIPTOGRAFIA ATIVADA AQUI
+    cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    
     flag_anonimo = models.CharField(max_length=1, blank=True, null=True)
     pnome = models.CharField(max_length=100, blank=True, null=True)
     snome = models.CharField(max_length=255, blank=True, null=True)
@@ -235,6 +247,7 @@ class TbEvento(models.Model):
     def __str__(self):
         return f"{self.nome} ({self.data_evento})"
 
+
 class TbLogAuditoria(models.Model):
     id_log = models.AutoField(primary_key=True)
     usuario = models.CharField(max_length=150, blank=True, null=True)
@@ -249,3 +262,4 @@ class TbLogAuditoria(models.Model):
 
     def __str__(self):
         return f"{self.data_hora} - {self.usuario} - {self.acao} - {self.rota}"
+    

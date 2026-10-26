@@ -20,7 +20,7 @@ from gerencias.forms import AccountSignupForm
 from gerencias.models import (
     Conn, TbFuncionario, TbTipoFuncionario, TbCadastroResponsavel,
     TbFilhosResponsavel, TbOficios, TbMadrinhaPadrinho,
-    TbApadrinhamentoCrianca, TbEvento, TbEntrega,
+    TbApadrinhamentoCrianca, TbEvento, TbEntrega,TbLogAuditoria,
 )
 import json
 import re
@@ -1011,7 +1011,10 @@ def anonimizar_titular(request, id_mad_pad):
         try:
             titular = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
             titular.pnome, titular.snome = "Titular", "Anonimizado (LGPD)"
-            titular.cpf = "00000000000" 
+            
+            # CORREÇÃO APLICADA: Gera o CPF falso e único baseado no ID do Padrinho/Madrinha
+            titular.cpf = f"ANON-{id_mad_pad}"[:11]
+            
             titular.endereco, titular.complemento, titular.telefone = "Dado Removido", "", "Removido"
             titular.flag_anonimo, titular.flag_ativo = 'S', 'N'
             titular.save()
@@ -1056,7 +1059,7 @@ def anonimizar_funcionario(request, id_funcionario):
         try:
             func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
             func.pnome, func.snome = "Funcionário", "Anonimizado (LGPD)"
-            func.cpf = "00000000000"
+            func.cpf = f"ANON-{id_funcionario}"
             func.telefone, func.endereco, func.complemento = "Removido", "Removido", ""
             func.flag_ativo = 'N'
             func.save()
@@ -1099,7 +1102,12 @@ def anonimizar_responsavel(request, id_responsavel):
         try:
             resp = get_object_or_404(TbCadastroResponsavel, id_responsavel=id_responsavel)
             resp.pnome, resp.snome = "Responsável", "Anonimizado (LGPD)"
-            resp.cpf, resp.data_nascimento = "00000000000", "01/01/1900"
+            
+            # CORREÇÃO APLICADA: Gera um CPF falso e único baseado no ID. 
+            # O [:11] garante que nunca vai estourar o limite de caracteres do banco.
+            resp.cpf = f"ANON-{id_responsavel}"[:11]
+            resp.data_nascimento = "01/01/1900"
+            
             resp.endereco, resp.complemento = "Removido", ""
             resp.flag_ativo = 'N'
             resp.save()
@@ -1108,7 +1116,11 @@ def anonimizar_responsavel(request, id_responsavel):
             filhos = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel)
             for filho in filhos:
                 filho.pnome, filho.snome = "Criança", "Anonimizada"
-                filho.cpf, filho.data_nascimento = "00000000000", "01/01/1900"
+                
+                # CORREÇÃO APLICADA NA CRIANÇA: Usa o ID (pk) da criança para ser único
+                filho.cpf = f"ANON-C{filho.pk}"[:11]
+                filho.data_nascimento = "01/01/1900"
+                
                 filho.flag_ativo = 'N'
                 filho.save()
                 
