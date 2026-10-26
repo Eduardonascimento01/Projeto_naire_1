@@ -153,17 +153,20 @@ def lista_funcionarios_desativos(request):
     except Exception as e:
         return pagina_erro(request, mensagem=f"Erro ao listar: {e}")
 
-
 @login_required
 def atualiza_funcionario(request):
     if request.method == 'POST':
         try:
             funcionario = get_object_or_404(TbFuncionario, id_funcionario=request.POST.get('id_funcionario'))
-            id_tipo = request.POST.get('id_tipo')
-            funcionario.id_tipo = get_object_or_404(TbTipoFuncionario, id_tipo=id_tipo)
+            funcionario.id_tipo = get_object_or_404(TbTipoFuncionario, id_tipo=request.POST.get('id_tipo'))
             funcionario.pnome = request.POST.get('pnome')
             funcionario.snome = request.POST.get('snome')
-            funcionario.cpf = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')
+            
+            # BLINDAGEM LGPD: Só atualiza o CPF se ele NÃO contiver os asteriscos da máscara
+            cpf_form = request.POST.get('cpf', '')
+            if '*' not in cpf_form:
+                funcionario.cpf = cpf_form.replace('.', '').replace('-', '')
+                
             funcionario.telefone = (request.POST.get('telefone') or '').replace('(', '').replace(')', '').replace('-', '').replace(' ', '')
             funcionario.endereco = request.POST.get('endereco')
             funcionario.complemento = request.POST.get('complemento')
@@ -177,7 +180,6 @@ def atualiza_funcionario(request):
             return pagina_erro(request, mensagem=f"Erro ao atualizar: {e}")
     else:
         return pagina_erro(request, mensagem="Método HTTP inválido.")
-
 
 @login_required
 def editar_funcionario(request, id_funcionario):
@@ -276,7 +278,12 @@ def atualiza_responsavel(request):
             responsavel = get_object_or_404(TbCadastroResponsavel, pk=request.POST.get('id_responsavel'))
             responsavel.pnome = request.POST.get('pnome')
             responsavel.snome = request.POST.get('snome')
-            responsavel.cpf = (request.POST.get('cpf') or '').replace(".", "").replace("-", "")
+            
+            # BLINDAGEM LGPD: Só atualiza o CPF se ele NÃO contiver asteriscos
+            cpf_form = request.POST.get('cpf', '')
+            if '*' not in cpf_form:
+                responsavel.cpf = cpf_form.replace(".", "").replace("-", "")
+                
             responsavel.data_nascimento = request.POST.get('dt_nasc')
             responsavel.flag_responsavel_trabalha = request.POST.get('resp_trabalha')
             responsavel.flag_conjuge = request.POST.get('flag_conjuge')
@@ -294,7 +301,6 @@ def atualiza_responsavel(request):
             return pagina_erro(request, mensagem=f"Erro: {e}")
     else:
         return pagina_erro(request, mensagem="Método HTTP inválido.")
-
 
 @login_required
 def valida_responsavel(request, id_responsavel):
@@ -671,7 +677,12 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
     if request.method == 'POST':
         try:
             registro = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
-            registro.cpf = request.POST.get('cpf', '').replace('.', '').replace('-', '')
+            
+            # BLINDAGEM LGPD: Só atualiza o CPF se ele NÃO contiver asteriscos
+            cpf_form = request.POST.get('cpf', '')
+            if '*' not in cpf_form:
+                registro.cpf = cpf_form.replace('.', '').replace('-', '')
+                
             registro.flag_anonimo = request.POST.get('flag_anonimo', 'N')
             registro.pnome = request.POST.get('pnome', '').strip()
             registro.snome = request.POST.get('snome', '').strip()
@@ -687,7 +698,6 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
         except Exception as e:
             return pagina_erro(request, mensagem=f"Erro: {e}")
     return pagina_erro(request, mensagem="Método inválido.")
-
 
 @login_required
 def reativar_madrinha_padrinho(request, id_mad_pad):
@@ -1070,10 +1080,21 @@ def exportar_dados_responsavel(request, id_responsavel):
             "Nome": resp.pnome, "Sobrenome": resp.snome,
             "Data_Nascimento": resp.data_nascimento,
             "Endereco": resp.endereco, "Bairro": resp.bairro, "Cidade": resp.cidade,
-            "Status_Ativo": resp.flag_ativo
+            "Status_Ativo": resp.flag_ativo,
+            "Dependentes": []  # Nova lista para abrigar os filhos
         }
+        
+        # LGPD: Busca todas as crianças vinculadas ao responsável
+        filhos = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel)
+        for filho in filhos:
+            dados["Dependentes"].append({
+                "Nome": filho.pnome,
+                "Data_Nascimento": filho.data_nascimento,
+                "Sexo": filho.sexo
+            })
+            
         response = JsonResponse(dados, encoder=DjangoJSONEncoder, json_dumps_params={'ensure_ascii': False, 'indent': 4})
-        response['Content-Disposition'] = f'attachment; filename="dados_responsavel_{id_responsavel}.json"'
+        response['Content-Disposition'] = f'attachment; filename="dados_familia_{id_responsavel}.json"'
         return response
     except Exception as e:
         return pagina_erro(request, mensagem=f"Erro ao exportar dados: {e}")
@@ -1088,7 +1109,18 @@ def anonimizar_responsavel(request, id_responsavel):
             resp.endereco, resp.complemento = "Removido", ""
             resp.flag_ativo = 'N'
             resp.save()
-            TbLogAuditoria.objects.create(usuario=request.user.username, acao='ANONIMIZACAO_RESP', rota=f'/resp/{id_responsavel}', ip=request.META.get('REMOTE_ADDR'))
+            
+            # LGPD EFEITO CASCATA: Anonimiza imediatamente todos os filhos dependentes
+            filhos = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel)
+            for filho in filhos:
+                filho.pnome = "Criança"
+                filho.snome = "Anonimizada"
+                filho.cpf = "00000000000"
+                filho.data_nascimento = "01/01/1900"
+                filho.flag_ativo = 'N'
+                filho.save()
+                
+            TbLogAuditoria.objects.create(usuario=request.user.username, acao='ANONIMIZACAO_CASCATA', rota=f'/resp/{id_responsavel}', ip=request.META.get('REMOTE_ADDR'))
             return redirect('lista_responsavel')
         except Exception as e:
             return pagina_erro(request, mensagem=f"Erro ao anonimizar: {e}")
