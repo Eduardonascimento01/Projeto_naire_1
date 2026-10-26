@@ -154,3 +154,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 # Desloga o usuário após 1 hora (3600 segundos) de inatividade
 SESSION_COOKIE_AGE = 3600
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# ==========================================
+# SEGURANÇA CONTRA FORÇA BRUTA (DJANGO-AXES)
+# ==========================================
+INSTALLED_APPS.append('axes')
+MIDDLEWARE.append('axes.middleware.AxesMiddleware')
+
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+AXES_FAILURE_LIMIT = 5      # Bloqueia o IP após 5 tentativas erradas de senha
+AXES_COOLOFF_TIME = 1       # Tempo de bloqueio: 1 hora
+AXES_RESET_ON_SUCCESS = True # Zera a contagem se o usuário logar com sucesso

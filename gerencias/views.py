@@ -643,10 +643,19 @@ def inserir_madrinha_padrinho(request):
 @login_required
 def lista_madrinha_padrinho(request):
     try:
-        lista = TbMadrinhaPadrinho.objects.filter(flag_ativo='S').order_by('-data_cadastro')
+        # Busca nativa do Django (Backend) para garantir precisão
+        termo = request.GET.get('q', '').strip()
+        if termo:
+            lista = TbMadrinhaPadrinho.objects.filter(
+                Q(pnome__icontains=termo) | Q(cpf__icontains=termo),
+                flag_ativo='S'
+            ).order_by('-data_cadastro')
+        else:
+            lista = TbMadrinhaPadrinho.objects.filter(flag_ativo='S').order_by('-data_cadastro')
+            
         for mad_pad in lista:
             mad_pad.cpf = mascarar_cpf(mad_pad.cpf)
-        return render(request, 'gerencias/listar_madrinhas_padrinhos.html', {'dados': lista})
+        return render(request, 'gerencias/listar_madrinhas_padrinhos.html', {'dados': lista, 'termo_busca': termo})
     except Exception as e:
         return pagina_erro(request, mensagem=f"Erro: {e}")
     
@@ -998,43 +1007,28 @@ def exportar_dados_titular(request, id_mad_pad):
 
 @login_required
 def anonimizar_titular(request, id_mad_pad):
-    """
-    LGPD Cap. III - Direito ao Esquecimento (Anonimização)
-    Remove dados identificáveis (Nome e CPF) mas mantém o histórico do padrinho na ONG.
-    """
     if request.method == 'POST':
         try:
             titular = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
-            
-            # Sobrescreve os dados identificáveis
-            titular.pnome = "Titular"
-            titular.snome = "Anonimizado (LGPD)"
-            # A função encrypt não aceita valores nulos se não for configurada para isso, 
-            # então enviamos um código genérico padrão para apagar o CPF real.
+            titular.pnome, titular.snome = "Titular", "Anonimizado (LGPD)"
             titular.cpf = "00000000000" 
-            titular.endereco = "Dado Removido"
-            titular.complemento = ""
-            titular.telefone = "Dado Removido"
-            titular.flag_anonimo = 'S'
-            titular.flag_ativo = 'N' # Desativa o acesso
-            
+            titular.endereco, titular.complemento, titular.telefone = "Dado Removido", "", "Removido"
+            titular.flag_anonimo, titular.flag_ativo = 'S', 'N'
             titular.save()
             
-            # Log de segurança para provar que a ONG atendeu ao pedido
-            TbLogAuditoria.objects.create(
-                usuario=request.user.username,
-                acao='ANONIMIZACAO_LGPD',
-                rota=f'/padrinhos/{id_mad_pad}',
-                ip=request.META.get('REMOTE_ADDR')
-            )
-            
-            messages.success(request, 'Dados do titular anonimizados com sucesso, conforme exigência da LGPD.')
+            # LGPD: Limpa endereços residuais no histórico de Entregas
+            entregas = TbEntrega.objects.filter(id_mad_pad=id_mad_pad)
+            for entrega in entregas:
+                entrega.endereco = "Endereço Anonimizado (LGPD)"
+                entrega.bairro = "Anonimizado"
+                entrega.save()
+                
+            TbLogAuditoria.objects.create(usuario=request.user.username, acao='ANONIMIZACAO_LGPD', rota=f'/padrinhos/{id_mad_pad}', ip=request.META.get('REMOTE_ADDR'))
+            messages.success(request, 'Dados do titular anonimizados com sucesso.')
             return redirect('lista_madrinha_padrinho')
-            
         except Exception as e:
             return pagina_erro(request, mensagem=f"Erro ao anonimizar titular: {e}")
-    else:
-        return pagina_erro(request, mensagem="Método inválido.")
+    return pagina_erro(request, mensagem="Método inválido.")
 
 # ==========================================
 # LGPD - FUNCIONÁRIOS E RESPONSÁVEIS
@@ -1113,12 +1107,17 @@ def anonimizar_responsavel(request, id_responsavel):
             # LGPD EFEITO CASCATA: Anonimiza imediatamente todos os filhos dependentes
             filhos = TbFilhosResponsavel.objects.filter(id_responsavel=id_responsavel)
             for filho in filhos:
-                filho.pnome = "Criança"
-                filho.snome = "Anonimizada"
-                filho.cpf = "00000000000"
-                filho.data_nascimento = "01/01/1900"
+                filho.pnome, filho.snome = "Criança", "Anonimizada"
+                filho.cpf, filho.data_nascimento = "00000000000", "01/01/1900"
                 filho.flag_ativo = 'N'
                 filho.save()
+                
+            # LGPD: Limpa endereços residuais dessas crianças no histórico de Entregas
+            entregas = TbEntrega.objects.filter(id_crianca__in=filhos)
+            for entrega in entregas:
+                entrega.endereco = "Endereço Anonimizado (LGPD)"
+                entrega.bairro = "Anonimizado"
+                entrega.save()
                 
             TbLogAuditoria.objects.create(usuario=request.user.username, acao='ANONIMIZACAO_CASCATA', rota=f'/resp/{id_responsavel}', ip=request.META.get('REMOTE_ADDR'))
             return redirect('lista_responsavel')
