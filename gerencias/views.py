@@ -487,6 +487,48 @@ def insere_novo_filho(request):
             return pagina_erro(request, mensagem=f"Erro: {e}")
     return pagina_erro(request, mensagem="Método inválido.")
 
+@login_required
+def atualiza_filho(request, id_filho):
+    if request.method == 'POST':
+        try:
+            # Busca a criança no banco pelo ID
+            filho = get_object_or_404(TbFilhosResponsavel, id_filho=id_filho)
+            id_responsavel = request.POST.get('responsavel')
+            
+            # Atualiza os dados
+            filho.pnome = request.POST.get('pnome')
+            filho.snome = request.POST.get('snome')
+            
+            # Mantém a data no formato que o usuário digitou
+            dt_nasc = request.POST.get('dt_nasc')
+            if dt_nasc:
+                filho.data_nascimento = dt_nasc
+                
+            # Limpa o CPF de pontos e traços (O ORM criptografa automaticamente ao salvar!)
+            cpf_limpo = (request.POST.get('cpf') or '').replace('.', '').replace('-', '')
+            if cpf_limpo:
+                filho.cpf = cpf_limpo
+                
+            filho.sexo = request.POST.get('sexo')
+            filho.numero_roupa = request.POST.get('roupa')
+            
+            sapato = request.POST.get('sapato')
+            if sapato:
+                filho.numero_sapato = sapato
+                
+            filho.cadastro_outra_ong = request.POST.get('outra_ong')
+            
+            # Salva no banco passando pela Criptografia AES
+            filho.save()
+            
+            # Grava no log invisível
+            TbLogAuditoria.objects.create(usuario=request.user.username, acao='EDICAO_CRIANCA', rota=f'/filho/edit/{id_filho}', ip=request.META.get('REMOTE_ADDR'))
+            
+            messages.success(request, 'Dados da criança atualizados com sucesso.')
+            return redirect('lista_filhos', id_responsavel)
+        except Exception as e:
+            return pagina_erro(request, mensagem=f"Erro ao atualizar criança: {e}")
+    return pagina_erro(request, mensagem="Método inválido.")
 
 @login_required
 def buscar_filhos(request):
