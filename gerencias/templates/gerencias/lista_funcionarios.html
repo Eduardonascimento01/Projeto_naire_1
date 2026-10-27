@@ -108,8 +108,8 @@
                             </div>
                         </td>
                         <td>
-                            <!-- SEGURANÇA: Máscara LGPD no CPF -->
-                            <code>{{ funcionario.cpf|slice:":3" }}.***.***-{{ funcionario.cpf|slice:"9:11" }}</code>
+                            <!-- SEGURANÇA: Máscara LGPD vindo direto do models.py -->
+                            <code>{{ funcionario.cpf_mascarado }}</code>
                         </td>
                         <td>
                             <!-- SEGURANÇA: Máscara LGPD no Telefone -->

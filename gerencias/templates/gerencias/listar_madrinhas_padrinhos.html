@@ -164,7 +164,8 @@
                         </td>
                         <td>
                             {% if item.cpf %}
-                                <code class="cpf-display">{{ item.cpf }}</code>
+                                <!-- SEGURANÇA: Máscara LGPD puxada do models.py -->
+                                <code class="cpf-display">{{ item.cpf_mascarado }}</code>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
@@ -221,21 +222,21 @@
                                         <i class="bi bi-pencil-square"></i> Editar
                                     </button>
                                 </form>
-								
-								<!-- BOTÕES DE PRIVACIDADE (LGPD) - VISÍVEIS APENAS PARA A DIRETORIA -->
-								{% if request.user.is_superuser %}
-								<a href="{% url 'exportar_dados_titular' item.id_mad_pad %}" 	class="btn btn-info btn-sm" title="Exportar Dados LGPD">
-									<i class="bi bi-download"></i> Exportar JSON
-								</a>
-								
-								<form action="{% url 'anonimizar_titular' item.id_mad_pad %}" method="POST" style="display: inline-block;">
-									{% csrf_token %}
-									<button type="submit" class="btn btn-danger btn-sm" title="Anonimizar Titular LGPD" onclick="return confirm('ATENÇÃO (LGPD): Tem certeza que deseja anonimizar este titular? O nome e CPF serão apagados para sempre. Esta ação não pode ser desfeita.');">
-										<i class="bi bi-trash"></i> Anonimizar
-									</button>
-								</form>
-								{% endif %}
-															
+                                
+                                <!-- BOTÕES DE PRIVACIDADE (LGPD) - VISÍVEIS APENAS PARA A DIRETORIA -->
+                                {% if request.user.is_superuser %}
+                                <a href="{% url 'exportar_dados_titular' item.id_mad_pad %}"    class="btn btn-info btn-sm" title="Exportar Dados LGPD">
+                                    <i class="bi bi-download"></i> Exportar JSON
+                                </a>
+                                
+                                <form action="{% url 'anonimizar_titular' item.id_mad_pad %}" method="POST" style="display: inline-block;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Anonimizar Titular LGPD" onclick="return confirm('ATENÇÃO (LGPD): Tem certeza que deseja anonimizar este titular? O nome e CPF serão apagados para sempre. Esta ação não pode ser desfeita.');">
+                                        <i class="bi bi-trash"></i> Anonimizar
+                                    </button>
+                                </form>
+                                {% endif %}
+                                                                                    
                             </div>
                         </td>
                     </tr>
@@ -473,22 +474,6 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Formatar CPF
-        function formatarCPF(cpf) {
-            const numbers = cpf.replace(/\D/g, '');
-            if (numbers.length === 11) {
-                return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-            }
-            return cpf;
-        }
-        
-        // Formatar CPFs existentes
-        document.querySelectorAll('.cpf-display').forEach(el => {
-            if (el.textContent && el.textContent !== '—') {
-                el.textContent = formatarCPF(el.textContent);
-            }
-        });
-        
         // Calcular estatísticas
         const rows = document.querySelectorAll('.padrinho-row');
         let ativos = 0;

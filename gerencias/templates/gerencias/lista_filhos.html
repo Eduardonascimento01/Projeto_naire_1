@@ -159,7 +159,7 @@
                         <td>
                             {% if filho.cpf %}
                                 <!-- SEGURANÇA: Máscara LGPD no CPF -->
-                                <code>{{ filho.cpf|slice:":3" }}.***.***-{{ filho.cpf|slice:"9:11" }}</code>
+                                <code>{{ filho.cpf_mascarado }}</code>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}

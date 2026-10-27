@@ -94,6 +94,15 @@ class TbFuncionario(models.Model):
 
     def __str__(self):
         return f"{self.pnome} {self.snome}"
+        
+    @property
+    def cpf_mascarado(self):
+        if not self.cpf: 
+            return ""
+        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
+        if len(cpf_limpo) == 11:
+            return f"***.***.***-{cpf_limpo[-2:]}"
+        return "***.***.***-**"
 
 
 class TbCadastroResponsavel(models.Model):
@@ -128,6 +137,15 @@ class TbCadastroResponsavel(models.Model):
 
     def __str__(self):
         return f"{self.pnome or ''} {self.snome or ''}".strip()
+        
+    @property
+    def cpf_mascarado(self):
+        if not self.cpf: 
+            return ""
+        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
+        if len(cpf_limpo) == 11:
+            return f"***.***.***-{cpf_limpo[-2:]}"
+        return "***.***.***-**"
 
 
 class TbFilhosResponsavel(models.Model):
@@ -156,6 +174,15 @@ class TbFilhosResponsavel(models.Model):
 
     def __str__(self):
         return f"{self.pnome or ''} {self.snome or ''}".strip()
+        
+    @property
+    def cpf_mascarado(self):
+        if not self.cpf: 
+            return ""
+        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
+        if len(cpf_limpo) == 11:
+            return f"***.***.***-{cpf_limpo[-2:]}"
+        return "***.***.***-**"
 
 
 class TbOficios(models.Model):
@@ -198,6 +225,15 @@ class TbMadrinhaPadrinho(models.Model):
 
     def __str__(self):
         return f"{self.pnome or ''} {self.snome or ''}".strip()
+        
+    @property
+    def cpf_mascarado(self):
+        if not self.cpf: 
+            return ""
+        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
+        if len(cpf_limpo) == 11:
+            return f"***.***.***-{cpf_limpo[-2:]}"
+        return "***.***.***-**"
 
 
 class TbApadrinhamentoCrianca(models.Model):
@@ -262,4 +298,3 @@ class TbLogAuditoria(models.Model):
 
     def __str__(self):
         return f"{self.data_hora} - {self.usuario} - {self.acao} - {self.rota}"
-    

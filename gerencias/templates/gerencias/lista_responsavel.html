@@ -170,8 +170,8 @@
                             </div>
                         </td>
                         <td>
-                            <!-- SEGURANÇA: Máscara LGPD no CPF -->
-                            <code>{{ item.cpf|slice:":3" }}.***.***-{{ item.cpf|slice:"9:11" }}</code>
+                            <!-- SEGURANÇA: Máscara LGPD no CPF puxado do banco -->
+                            <code>{{ item.cpf_mascarado }}</code>
                         </td>
                         <td>
                             <!-- SEGURANÇA: Endereço minimizado LGPD -->
