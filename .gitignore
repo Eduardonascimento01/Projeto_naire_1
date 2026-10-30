@@ -17,6 +17,7 @@ inspec_bd/
 # Variáveis de ambiente e segredos
 .env
 .env.local
+relatorio_erros.md
 
 # Arquivos do SO
 .DS_Store

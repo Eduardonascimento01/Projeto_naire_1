@@ -31,3 +31,12 @@ Faça uma cópia do arquivo `.env.example`, renomeie para `.env` e preencha com 
 ## 🧪 Pentest e Auditoria Automatizada
 Para rodar a esteira de testes de segurança, execute o script no terminal:
 `.\atualizar_sistema.ps1`
+
+## 📋 Relatório de erros do projeto
+Para verificar a sintaxe dos arquivos Python, executar as checagens do Django e rodar os testes existentes:
+
+`python relatorio_erros.py`
+
+O resultado é salvo em `relatorio_erros.md`. O comando retorna código de saída diferente de zero se alguma etapa falhar; para escolher outro caminho para o relatório, use `python relatorio_erros.py --saida caminho\relatorio.md`.
+
+Essa verificação não executa o pentest nem altera o banco de dados. Os testes usam o banco de teste gerenciado pelo Django.
