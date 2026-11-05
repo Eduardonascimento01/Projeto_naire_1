@@ -8,6 +8,7 @@ Uso:
 Rode depois do script Dump_banco/migracao_cpf_hash.sql. Pode ser rodado
 várias vezes sem problema (só atualiza o que estiver diferente).
 """
+import re
 from collections import defaultdict
 
 from django.core.management.base import BaseCommand
@@ -17,6 +18,16 @@ from gerencias.cpf_utils import hash_cpf
 from gerencias.models import (
     TbCadastroResponsavel, TbFilhosResponsavel, TbFuncionario, TbMadrinhaPadrinho,
 )
+
+_FORMATO_BYTES = re.compile(r"""^(?:bytearray\()?b(['"])(.*)\1\)?$""")
+
+
+def _cpf_de_bytes(valor):
+    if isinstance(valor, (bytes, bytearray)):
+        return bytes(valor).decode('utf-8', 'replace')
+    m = _FORMATO_BYTES.match(str(valor or ''))
+    return m.group(2) if m else None
+
 
 MODELS = [TbCadastroResponsavel, TbFilhosResponsavel, TbMadrinhaPadrinho, TbFuncionario]
 
@@ -42,6 +53,7 @@ class Command(BaseCommand):
         nome = model._meta.db_table
         hashes = {}
         ilegiveis = []
+        convertidos = {}
 
         # Um registro por vez: se um CPF não puder ser decifrado, os outros
         # continuam e o problema é LISTADO (antes ele era pulado em silêncio).
@@ -51,6 +63,13 @@ class Command(BaseCommand):
             except Exception as exc:  # noqa: BLE001 - queremos relatar qualquer falha
                 ilegiveis.append((pk, type(exc).__name__))
                 continue
+            # A versão antiga do criptografar_banco.py cifrava o CPF como
+            # BYTES; ao decifrar ele volta como o texto "b'12345678909'"
+            # (ou "bytearray(b'...')"). Aqui recuperamos só o CPF.
+            texto = _cpf_de_bytes(obj.cpf)
+            if texto is not None:
+                convertidos[pk] = texto
+                obj.cpf = texto
             hashes[pk] = (hash_cpf(obj.cpf), obj.cpf_hash)
 
         por_hash = defaultdict(list)
@@ -65,6 +84,11 @@ class Command(BaseCommand):
             if novo != atual and pk not in pks_duplicados
         }
 
+        if not dry_run and convertidos:
+            with transaction.atomic():
+                for pk, texto in convertidos.items():
+                    model.objects.filter(pk=pk).update(cpf=texto)
+
         if not dry_run and a_atualizar:
             with transaction.atomic():
                 # Zera primeiro para não esbarrar no índice único durante a troca.
@@ -74,6 +98,8 @@ class Command(BaseCommand):
 
         acao = 'seriam atualizados' if dry_run else 'atualizados'
         self.stdout.write(f'{nome}: {len(hashes)} lidos, {len(a_atualizar)} {acao}.')
+        if convertidos:
+            self.stdout.write(f'  {len(convertidos)} CPF(s) gravados como bytes {"seriam convertidos" if dry_run else "convertidos"} para texto.')
         for pk, erro in ilegiveis:
             self.stdout.write(self.style.ERROR(
                 f'  id {pk}: CPF não pôde ser decifrado ({erro}). '

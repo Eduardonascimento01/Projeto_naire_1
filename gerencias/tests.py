@@ -384,3 +384,19 @@ class PreencherCpfHashTests(TestCase):
         self.assertEqual(a.cpf_hash, hash_cpf(CPF_A))
         self.assertIsNone(b.cpf_hash)  # duplicado: não grava, só avisa
         self.assertIn(f'CPF repetido nos ids {sorted([b.pk, c.pk])}', saida.getvalue())
+
+    def test_converte_cpf_gravado_como_bytes(self):
+        """A versão antiga do criptografar_banco.py cifrava bytes, não texto."""
+        from io import StringIO
+        from django.core.management import call_command
+
+        resp = criar_responsavel(cpf=CPF_A)
+        TbCadastroResponsavel.objects.filter(pk=resp.pk).update(cpf=CPF_A.encode(), cpf_hash=None)
+        resp.refresh_from_db()
+        self.assertEqual(resp.cpf, "b'52998224725'")  # como ficou no banco
+
+        call_command('preencher_cpf_hash', stdout=StringIO())
+
+        resp.refresh_from_db()
+        self.assertEqual(resp.cpf, CPF_A)
+        self.assertEqual(resp.cpf_hash, hash_cpf(CPF_A))
