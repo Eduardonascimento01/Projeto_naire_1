@@ -14,8 +14,9 @@ Sistema web desenvolvido em Python/Django para gestão de apadrinhamentos, entre
 1. Clone o repositório:
 `git clone [URL_DO_SEU_REPOSITORIO]`
 
-2. Crie e ative o ambiente virtual:
-`python -m venv .venv`
+2. Crie e ative o ambiente virtual **com Python 3.12 ou 3.13**.
+O Python 3.14 não funciona: o Django 4.2 não o suporta, e o `django-cryptography` (que cifra os CPFs) não funciona no Django 5.
+`py -3.13 -m venv .venv`
 `.\.venv\Scripts\Activate.ps1`
 
 3. Instale as dependências:
