@@ -51,7 +51,7 @@
                                 <h3 class="mb-0 fw-bold">{{ registro.pnome }} {{ registro.snome }}</h3>
                                 <p class="mb-0 opacity-75 mt-1">
                                     <i class="bi bi-geo-alt-fill"></i> {{ registro.cidade|default:"—" }}/{{ registro.estado|default:"—" }}
-                                    {% if registro.cpf %} | <i class="bi bi-credit-card"></i> CPF: {{ registro.cpf }}{% endif %}
+                                    {% if registro.cpf %} | <i class="bi bi-credit-card"></i> CPF: {{ registro.cpf_mascarado }}{% endif %}
                                 </p>
                             </div>
                             <div class="ms-auto">
@@ -189,14 +189,9 @@
                     <div class="text-center py-5">
                         <i class="bi bi-emoji-frown display-1 text-muted"></i>
                         <p class="mt-3 text-muted">Nenhuma criança disponível para apadrinhamento.</p>
-                        <form action="{% url 'cadastro_familia' %}" 
-                            method="POST" 
-                            style="display: inline-block;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary mt-2">
-                                <i class="bi bi-person-plus-fill"></i> Cadastrar família primeiro
-                            </button>
-                        </form>
+                        <a href="{% url 'novo_responsavel' %}" class="btn btn-primary mt-2">
+                            <i class="bi bi-person-plus-fill"></i> Cadastrar família primeiro
+                        </a>
                     </div>
                 {% endif %}
             </div>

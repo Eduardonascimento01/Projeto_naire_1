@@ -1,11 +1,16 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from django.views.generic import RedirectView
 
 urlpatterns = [
     path('',views.home,name='home'),
     path('logout/', auth_views.LogoutView.as_view(next_page=''), name='logout'),
-    path('gerencias/signup/', views.userCreateView.as_view(),name='signup'),
+    path('signup/', RedirectView.as_view(url='/admin/'), name='signup'),
+    
+    # ROTA DE CADASTRO PÚBLICO REMOVIDA POR SEGURANÇA (CRÍTICO-01 / ALTO-03)
+    # A criação de usuários da ONG agora deve ser feita exclusivamente via Admin
+    
     path('gerencias/pagina_erro/', views.pagina_erro, name='pagina_erro'),
     
     path('gerencias/novo_funcionario/',views.novo_funcionario, name='novo_funcionario'),
@@ -16,7 +21,11 @@ urlpatterns = [
     path('gerencias/desativa_funcionario/<int:id_funcionario>',views.desativa_funcionario, name='desativa_funcionario'),
     path('gerencias/reativa_funcionario/<int:id_funcionario>',views.reativa_funcionario, name='reativa_funcionario'),
     path('gerencias/lista_funcionarios_desativados/',views.lista_funcionarios_desativos, name='lista_funcionarios_desativos'),
-
+    path('gerencias/exportar_dados_funcionario/<int:id_funcionario>/', views.exportar_dados_funcionario, name='exportar_dados_funcionario'),
+    path('gerencias/anonimizar_funcionario/<int:id_funcionario>/', views.anonimizar_funcionario, name='anonimizar_funcionario'),
+    
+    path('gerencias/exportar_dados_responsavel/<int:id_responsavel>/', views.exportar_dados_responsavel, name='exportar_dados_responsavel'),
+    path('gerencias/anonimizar_responsavel/<int:id_responsavel>/', views.anonimizar_responsavel, name='anonimizar_responsavel'),
 
     path('gerencias/novo_responsavel/',views.novo_responsavel, name='novo_responsavel'),
     path('gerencias/insere_responsavel/', views.insere_novo_responsavel, name='insere_novo_responsavel'),
@@ -38,7 +47,7 @@ urlpatterns = [
     path('gerencias/editar_filho/<int:id_filho>',views.editar_filho, name='editar_filho'),
     path('gerencias/buscar_filhos/', views.buscar_filhos, name='buscar_filhos'),
     path('gerencias/novo_filho/<int:id_responsavel>', views.novo_filho, name='novo_filho'),
-
+    path('gerencias/atualiza_filho/<int:id_filho>/', views.atualiza_filho, name='atualiza_filho'),
 
     path('gerencias/novo_oficio/', views.novo_oficio, name='novo_oficio'),
     path('gerencias/lista_oficio/', views.lista_oficio, name='lista_oficio'),
@@ -57,6 +66,8 @@ urlpatterns = [
     path('gerencias/vincular_mad_pad_crianca/', views.vincular_mad_pad_crianca, name='vincular_mad_pad_crianca'),
     path('gerencias/reativar_madrinha_padrinho/<int:id_mad_pad>/', views.reativar_madrinha_padrinho, name='reativar_madrinha_padrinho'),
     path('gerencias/lista_apadrinhamento/', views.lista_apadrinhamento, name='lista_apadrinhamento'),
+    path('gerencias/exportar_dados_titular/<int:id_mad_pad>/', views.exportar_dados_titular, name='exportar_dados_titular'),
+    path('gerencias/anonimizar_titular/<int:id_mad_pad>/', views.anonimizar_titular, name='anonimizar_titular'),
 
 
     path('gerencias/novo_evento/', views.novo_evento, name='novo_evento'),
@@ -70,6 +81,7 @@ urlpatterns = [
     path('gerencias/nova_entrega/', views.nova_entrega, name='nova_entrega'),
     path('gerencias/listar_entregas/', views.listar_entregas, name='listar_entregas'),
     path('gerencias/insere_nova_entrega/', views.insere_nova_entrega, name='insere_nova_entrega'),
+    path('gerencias/atualiza_entrega/<int:id_entrega>/', views.atualiza_entrega, name='atualiza_entrega'),
     path('gerencias/editar_entrega/<int:id_entrega>/', views.editar_entrega, name='editar_entrega'),
 
 ]

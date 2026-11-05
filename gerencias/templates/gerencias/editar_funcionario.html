@@ -109,8 +109,9 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-credit-card"></i> CPF
                                     </label>
-                                    <input type="text" name="cpf" value="{{ item.cpf }}" 
+                                    <input type="text" name="cpf" value="{{ item.cpf_mascarado }}" 
                                            class="form-control shadow-sm cpf-mask" required>
+                                    <small class="text-muted">Para manter o CPF atual, deixe o campo como está.</small>
                                 </div>
 
                                 <!-- Telefone -->
@@ -545,7 +546,8 @@
                     return false;
                 }
                 
-                if (cpf.length !== 11) {
+                const cpfMascarado = document.querySelector('[name="cpf"]').value.includes('*');
+                if (!cpfMascarado && cpf.length !== 11) {
                     e.preventDefault();
                     alert('⚠️ CPF inválido! O CPF deve conter 11 dígitos.');
                     return false;

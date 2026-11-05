@@ -151,16 +151,28 @@
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar-circle-sm me-3">
+                                    <!-- SEGURANÇA LGPD: Mascara inicial do padrinho se anônimo -->
                                     <span class="initials">
-                                        {{ apad.id_mad_pad.pnome|slice:":1" }}{{ apad.id_mad_pad.snome|slice:":1" }}
+                                        {% if apad.id_mad_pad.flag_anonimo == 'S' %}
+                                            AN
+                                        {% else %}
+                                            {{ apad.id_mad_pad.pnome|slice:":1" }}{{ apad.id_mad_pad.snome|slice:":1" }}
+                                        {% endif %}
                                     </span>
                                 </div>
                                 <div>
-                                    <strong>{{ apad.id_mad_pad.pnome }} {{ apad.id_mad_pad.snome }}</strong>
+                                    <!-- SEGURANÇA LGPD: Mascara nome do padrinho se anônimo -->
+                                    <strong>
+                                        {% if apad.id_mad_pad.flag_anonimo == 'S' %}
+                                            *** (Padrinho Anônimo) ***
+                                        {% else %}
+                                            {{ apad.id_mad_pad.pnome }} {{ apad.id_mad_pad.snome }}
+                                        {% endif %}
+                                    </strong>
                                     <br>
                                     <span class="badge bg-primary bg-opacity-10 text-primary">
                                         <i class="bi bi-person-badge"></i> 
-                                        {% if apad.id_mad_pad.cpf %}Madrinha/Padrinho{% else %}Anônimo{% endif %}
+                                        Madrinha/Padrinho
                                     </span>
                                     <br>
                                     <small class="text-muted">ID: #{{ apad.id_mad_pad.id_mad_pad }}</small>
@@ -175,7 +187,8 @@
                                     </span>
                                 </div>
                                 <div>
-                                    <strong>{{ apad.id_filho.pnome }} {{ apad.id_filho.snome }}</strong>
+                                    <!-- SEGURANÇA LGPD: Oculta o sobrenome da criança para evitar identificação -->
+                                    <strong>{{ apad.id_filho.pnome }} ***</strong>
                                     <br>
                                     <span class="badge bg-info bg-opacity-10 text-info">
                                         <i class="bi bi-people-fill"></i> Criança
@@ -214,8 +227,6 @@
                     </tr>
                     {% endfor %}
                 </tbody>
-                Se os nomes dos campos forem diferentes, ajuste conforme seu modelo:
-                Para acessar campos de 
             </table>
         </div>
 
@@ -227,11 +238,7 @@
                     Mostrando <strong id="visibleCount">{{ registros|length }}</strong> de <strong id="totalCount">{{ registros|length }}</strong> apadrinhamentos
                 </p>
             </div>
-            <div class="col-md-6 text-md-end">
-                <button class="btn btn-outline-primary btn-sm" id="exportBtn">
-                    <i class="bi bi-download"></i> Exportar Lista
-                </button>
-            </div>
+            <!-- Botão Exportar CSV removido (SEGURANÇA: MÉDIO-02) -->
         </div>
     </div>
 </div>
@@ -505,35 +512,6 @@
                     e.preventDefault();
                 }
             });
-        });
-        
-        // Exportar lista
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.apad-row:visible');
-            let csvContent = "ID,Apadrinhamento,ID Madrinha/Padrinho,Tipo,ID Criança,Data Cadastro,Status\n";
-            
-            visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
-                const idPadrinho = row.cells[2]?.querySelector('strong')?.textContent.replace('ID: #', '') || '';
-                const tipo = row.cells[2]?.querySelector('.badge')?.textContent.trim() || '';
-                const idCrianca = row.cells[3]?.querySelector('strong')?.textContent.replace('ID: #', '') || '';
-                const dataCadastro = row.cells[4]?.textContent.trim() || '';
-                const status = row.cells[5]?.textContent.trim() || '';
-                
-                csvContent += `${id},Apadrinhamento #${id},${idPadrinho},${tipo},${idCrianca},"${dataCadastro}",${status}\n`;
-            });
-            
-            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.href = url;
-            link.setAttribute('download', 'apadrinhamentos.csv');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            alert('✅ Lista exportada com sucesso!');
         });
     });
 </script>

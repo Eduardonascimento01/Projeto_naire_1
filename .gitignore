@@ -1,0 +1,24 @@
+# Ambientes Virtuais
+.venv/
+venv/
+ENV/
+
+# Caches do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bancos de dados e Dumps (CRÍTICO-03)
+db.sqlite3
+*.sql
+Dump_banco/
+inspec_bd/
+
+# Variáveis de ambiente e segredos
+.env
+.env.local
+relatorio_erros.md
+
+# Arquivos do SO
+.DS_Store
+.env

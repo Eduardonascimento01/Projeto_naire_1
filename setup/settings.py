@@ -1,24 +1,41 @@
 from pathlib import Path
 import os
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+load_dotenv()
+
+# Constrói os caminhos dentro do projeto, por exemplo: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in {'true', '1', 'yes'}
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+# Se não estiver em DEBUG (desenvolvimento), o sistema QUEBRA se não houver uma chave segura
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured('CRÍTICO: Defina DJANGO_SECRET_KEY no ambiente de produção.')
+    SECRET_KEY = 'django-insecure-local-development-only-key'
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-929e3nkr9$9q+0e4@abmjuk&-bg^5t1=*1w@&oo_&@t4eveh48'
+# CHAVE CRIPTOGRÁFICA (Protege CPFs e dados sensíveis gerados pelo django-cryptography)
+CRYPTOGRAPHY_KEY = os.environ.get('CRYPTOGRAPHY_KEY')
+if not CRYPTOGRAPHY_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured('CRÍTICO: Defina CRYPTOGRAPHY_KEY no ambiente de produção.')
+    CRYPTOGRAPHY_KEY = 'chave-super-secreta-ong-naire-2026'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# CHAVE DO HASH DE CPF (coluna cpf_hash: deduplicação e busca por CPF)
+# Se não for definida, usa a CRYPTOGRAPHY_KEY. ATENÇÃO: depois de definida,
+# NÃO troque. Se trocar, rode `python manage.py preencher_cpf_hash` de novo.
+CPF_HASH_KEY = os.environ.get('CPF_HASH_KEY') or CRYPTOGRAPHY_KEY
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
+]
 
-
-# Application definition
-
+# Definição das aplicações instaladas no projeto
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -37,6 +54,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'gerencias.middleware.LogAuditoriaMiddleware',
 ]
 
 ROOT_URLCONF = 'setup.urls'
@@ -58,70 +76,101 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'setup.wsgi.application'
 
+# Configuração do Banco de Dados (MySQL) blindada contra credenciais padrão
+DB_USER = os.environ.get('DB_USER')
+DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+if not DEBUG and (DB_USER in [None, 'root', ''] or DB_PASSWORD in [None, '1234', '']):
+    raise ImproperlyConfigured('CRÍTICO: Não utilize root, senhas em branco ou padrões genéricos em produção.')
 
-"""DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}"""
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'bd_naire2',
-        'USER': 'root',
-        'PASSWORD': '1234',
-        'HOST': 'localhost',  # ou o IP do servidor
-        'PORT': '3306',
+        'NAME': os.environ.get('DB_NAME', 'bd_naire2'),
+        'USER': DB_USER or 'root', # Aceita root apenas localmente (DEBUG=True)
+        'PASSWORD': DB_PASSWORD or '', 
+        'HOST': os.environ.get('DB_HOST', 'localhost'),  # ou o IP do servidor
+        'PORT': os.environ.get('DB_PORT', '3306'),
     }
 }
 
-
-# Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+# Criptografia de senhas com Bcrypt (mantendo compatibilidade com as senhas já criadas)
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
 ]
 
+try:
+    import bcrypt
+    PASSWORD_HASHERS.insert(0, 'django.contrib.auth.hashers.BCryptSHA256PasswordHasher')
+except ImportError:
+    pass
 
-# Internationalization
-# https://docs.djangoproject.com/en/6.0/topics/i18n/
+# Validação de senhas
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 
+# Internacionalização (Idioma e Fuso Horário)
 LANGUAGE_CODE = 'pt-br'
-
-TIME_ZONE = 'America/Sao_paulo'
-
+TIME_ZONE = 'America/Sao_Paulo'
 USE_I18N = True
-
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
-STATIC_URL = 'static/'
-
+# Arquivos estáticos (CSS, JavaScript, Imagens) e redirecionamento de Login/Logout
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
-
 STATIC_URL = '/assets/'
-STATIC_ROOT = os.path.join(BASE_DIR,'staticfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR,'static')
+    os.path.join(BASE_DIR, 'static')
 ]
+
+# ==============================================================================
+# POLÍTICAS DE SEGURANÇA AVANÇADA (WAF Interno, Bloqueio XSS e Blindagem)
+# ==============================================================================
+# Segurança de Cookies (Seguro: False no localhost, True em produção)
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
+# Barrar clickjacking (incorporação do site em iframes maliciosos)
+X_FRAME_OPTIONS = 'DENY'
+
+# Proteção contra XSS e Sniffing (MIME-Type)
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Forçar HTTPS (HSTS) - Ativado automaticamente em produção (DEBUG=False)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 ano
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
+# Tempo de expiração curta para a sessão (Requisito 5 - Tokens Seguros)
+# Desloga o usuário após 1 hora (3600 segundos) de inatividade
+SESSION_COOKIE_AGE = 3600
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# ==========================================
+# SEGURANÇA CONTRA FORÇA BRUTA (DJANGO-AXES)
+# ==========================================
+INSTALLED_APPS.append('axes')
+MIDDLEWARE.append('axes.middleware.AxesMiddleware')
+
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+AXES_FAILURE_LIMIT = 5      # Bloqueia o IP após 5 tentativas erradas de senha
+AXES_COOLOFF_TIME = 1       # Tempo de bloqueio: 1 hora
+AXES_RESET_ON_SUCCESS = True # Zera a contagem se o usuário logar com sucesso
