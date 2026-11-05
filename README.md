@@ -39,4 +39,19 @@ Para verificar a sintaxe dos arquivos Python, executar as checagens do Django e 
 
 O resultado é salvo em `relatorio_erros.md`. O comando retorna código de saída diferente de zero se alguma etapa falhar; para escolher outro caminho para o relatório, use `python relatorio_erros.py --saida caminho\relatorio.md`.
 
-Essa verificação não executa o pentest nem altera o banco de dados. Os testes usam o banco de teste gerenciado pelo Django.
+Essa verificação não executa o pentest nem altera o banco de dados.
+
+## ✅ Testes automatizados
+Os testes usam SQLite em memória (não precisam de MySQL e não tocam no banco real):
+
+`python manage.py test --settings=setup.settings_test`
+
+## 🔑 Atualização: CPF criptografado + `cpf_hash`
+Faça backup do banco e siga a ordem descrita no topo de `Dump_banco/migracao_cpf_hash.sql`:
+
+1. `mysql -u USUARIO -p bd_naire2 < Dump_banco/migracao_cpf_hash.sql`
+2. `python criptografar_banco.py`
+3. `python manage.py migrate` (cria o grupo **LGPD**)
+4. `python manage.py preencher_cpf_hash`
+
+Depois, no Admin, adicione ao grupo **LGPD** os usuários que podem exportar, anonimizar e excluir dados.

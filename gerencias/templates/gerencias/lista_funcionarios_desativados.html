@@ -135,7 +135,7 @@
                     {% for funcionario in lista %}
                     <tr class="funcionario-row" 
                         data-nome="{{ funcionario.pnome }} {{ funcionario.snome }}"
-                        data-cpf="{{ funcionario.cpf_funcionario }}"
+                        data-cpf="{{ funcionario.cpf_mascarado }}"
                         data-cidade="{{ funcionario.cidade }}"
                         data-estado="{{ funcionario.estado }}">
                         <td class="px-4 fw-bold text-muted">#{{ funcionario.id_funcionario }}</td>
@@ -154,7 +154,7 @@
                             </div>
                         </div>
                         <td>
-                            <code class="cpf-display">{{ funcionario.cpf_funcionario }}</code>
+                            <code class="cpf-display">{{ funcionario.cpf_mascarado }}</code>
                         </div>
                         <td>
                             <i class="bi bi-whatsapp text-success"></i>
@@ -199,7 +199,7 @@
                         <td colspan="8" class="text-center py-5">
                             <i class="bi bi-emoji-smile display-1 text-muted"></i>
                             <p class="mt-3 text-muted">Nenhum funcionário inativo encontrado.</p>
-                            <form action="{% url 'lista_funcionarios_ativos' %}" method="POST" style="display: inline-block;">
+                            <form action="{% url 'lista_funcionarios' %}" method="POST" style="display: inline-block;">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary mt-2">
                                     <i class="bi bi-people-fill"></i> Ver funcionários ativos

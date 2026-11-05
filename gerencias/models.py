@@ -3,6 +3,34 @@ from django.db import models
 from django.conf import settings
 import mysql.connector
 
+from gerencias.cpf_utils import hash_cpf, mascarar_cpf
+
+
+class CpfMixin:
+    """
+    Comportamento comum aos models que guardam CPF criptografado.
+
+    - `cpf_mascarado`: versão para exibir nos templates (***.***.***-09).
+    - `save()`: mantém a coluna `cpf_hash` sempre sincronizada com o `cpf`.
+      Assim nenhuma view precisa lembrar de calcular o hash.
+    """
+
+    @property
+    def cpf_mascarado(self):
+        return mascarar_cpf(self.cpf)
+
+    def save(self, *args, **kwargs):
+        self.cpf_hash = hash_cpf(self.cpf)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'cpf' in update_fields:
+            kwargs['update_fields'] = set(update_fields) | {'cpf_hash'}
+        super().save(*args, **kwargs)
+
+
+def _campo_cpf_hash():
+    # HMAC-SHA256 em hexadecimal = 64 caracteres. NULL quando não há CPF.
+    return models.CharField(max_length=64, unique=True, blank=True, null=True, editable=False)
+
 # Classe de conexão otimizada e segura
 class Conn:
     @staticmethod
@@ -71,7 +99,7 @@ class TbTipoFuncionario(models.Model):
         return self.descricao
 
 
-class TbFuncionario(models.Model):
+class TbFuncionario(CpfMixin, models.Model):
     id_funcionario = models.AutoField(primary_key=True)
     id_tipo = models.ForeignKey(TbTipoFuncionario, models.DO_NOTHING, db_column='id_tipo')
     pnome = models.CharField(max_length=255)
@@ -79,6 +107,7 @@ class TbFuncionario(models.Model):
     
     # CRIPTOGRAFIA ATIVADA AQUI
     cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    cpf_hash = _campo_cpf_hash()
     
     endereco = models.CharField(max_length=255)
     telefone = models.CharField(max_length=45, blank=True, null=True)
@@ -86,7 +115,7 @@ class TbFuncionario(models.Model):
     bairro = models.CharField(max_length=255)
     cidade = models.CharField(max_length=255)
     estado = models.CharField(max_length=2)
-    flag_ativo = models.CharField(max_length=1, blank=True, null=True)
+    flag_ativo = models.CharField(max_length=1, blank=True, null=True, default='S')
 
     class Meta:
         managed = False
@@ -94,18 +123,10 @@ class TbFuncionario(models.Model):
 
     def __str__(self):
         return f"{self.pnome} {self.snome}"
-        
-    @property
-    def cpf_mascarado(self):
-        if not self.cpf: 
-            return ""
-        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
-        if len(cpf_limpo) == 11:
-            return f"***.***.***-{cpf_limpo[-2:]}"
-        return "***.***.***-**"
 
 
-class TbCadastroResponsavel(models.Model):
+
+class TbCadastroResponsavel(CpfMixin, models.Model):
     id_responsavel = models.AutoField(primary_key=True)
     id_usuario_cad = models.ForeignKey(AuthUser, models.DO_NOTHING, db_column='id_usuario_cad', blank=True, null=True)
     data_cadastro = models.DateTimeField(blank=True, null=True)
@@ -115,6 +136,7 @@ class TbCadastroResponsavel(models.Model):
     
     # CRIPTOGRAFIA ATIVADA AQUI
     cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    cpf_hash = _campo_cpf_hash()
     
     titulo = models.CharField(max_length=45, blank=True, null=True)
     data_nascimento = models.CharField(max_length=10, blank=True, null=True)
@@ -127,8 +149,8 @@ class TbCadastroResponsavel(models.Model):
     cidade = models.CharField(max_length=255)
     estado = models.CharField(max_length=2)
     url_image_familia = models.CharField(max_length=255, blank=True, null=True)
-    flag_validado = models.CharField(max_length=1, blank=True, null=True)
-    flag_ativo = models.CharField(max_length=1, blank=True, null=True)
+    flag_validado = models.CharField(max_length=1, blank=True, null=True, default='N')
+    flag_ativo = models.CharField(max_length=1, blank=True, null=True, default='S')
     observacoes = models.CharField(max_length=255, blank=True, null=True)
 
     class Meta:
@@ -137,18 +159,10 @@ class TbCadastroResponsavel(models.Model):
 
     def __str__(self):
         return f"{self.pnome or ''} {self.snome or ''}".strip()
-        
-    @property
-    def cpf_mascarado(self):
-        if not self.cpf: 
-            return ""
-        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
-        if len(cpf_limpo) == 11:
-            return f"***.***.***-{cpf_limpo[-2:]}"
-        return "***.***.***-**"
 
 
-class TbFilhosResponsavel(models.Model):
+
+class TbFilhosResponsavel(CpfMixin, models.Model):
     id_filho = models.AutoField(primary_key=True)
     id_responsavel = models.ForeignKey(TbCadastroResponsavel, models.DO_NOTHING, db_column='id_responsavel')
     id_usuario_cad = models.ForeignKey(AuthUser, models.DO_NOTHING, db_column='id_usuario_cad', blank=True, null=True)
@@ -158,15 +172,16 @@ class TbFilhosResponsavel(models.Model):
     
     # CRIPTOGRAFIA ATIVADA AQUI
     cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    cpf_hash = _campo_cpf_hash()
     
     sexo = models.CharField(max_length=2, blank=True, null=True)
     numero_roupa = models.CharField(max_length=15, blank=True, null=True)
     numero_sapato = models.IntegerField(blank=True, null=True)
-    cadastro_outra_ong = models.CharField(max_length=1, blank=True, null=True)
+    cadastro_outra_ong = models.CharField(max_length=1, blank=True, null=True, default='N')
     url_imagem = models.CharField(max_length=255, blank=True, null=True)
     data_cadastro = models.DateTimeField(blank=True, null=True)
     data_atualizacao = models.DateTimeField(blank=True, null=True)
-    flag_ativo = models.CharField(max_length=1, blank=True, null=True)
+    flag_ativo = models.CharField(max_length=1, blank=True, null=True, default='S')
 
     class Meta:
         managed = False
@@ -174,15 +189,7 @@ class TbFilhosResponsavel(models.Model):
 
     def __str__(self):
         return f"{self.pnome or ''} {self.snome or ''}".strip()
-        
-    @property
-    def cpf_mascarado(self):
-        if not self.cpf: 
-            return ""
-        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
-        if len(cpf_limpo) == 11:
-            return f"***.***.***-{cpf_limpo[-2:]}"
-        return "***.***.***-**"
+
 
 
 class TbOficios(models.Model):
@@ -200,14 +207,15 @@ class TbOficios(models.Model):
         return f"Ofício #{self.id_oficio} - {self.destinatario}"
 
 
-class TbMadrinhaPadrinho(models.Model):
+class TbMadrinhaPadrinho(CpfMixin, models.Model):
     id_mad_pad = models.AutoField(primary_key=True)
     id_usuario_cad = models.ForeignKey(AuthUser, models.DO_NOTHING, db_column='id_usuario_cad', blank=True, null=True)
     
     # CRIPTOGRAFIA ATIVADA AQUI
     cpf = encrypt(models.CharField(max_length=255, blank=True, null=True))
+    cpf_hash = _campo_cpf_hash()
     
-    flag_anonimo = models.CharField(max_length=1, blank=True, null=True)
+    flag_anonimo = models.CharField(max_length=1, blank=True, null=True, default='N')
     pnome = models.CharField(max_length=100, blank=True, null=True)
     snome = models.CharField(max_length=255, blank=True, null=True)
     endereco = models.CharField(max_length=255, blank=True, null=True)
@@ -217,7 +225,7 @@ class TbMadrinhaPadrinho(models.Model):
     estado = models.CharField(max_length=255, blank=True, null=True)
     data_cadastro = models.DateTimeField(blank=True, null=True)
     atualizacao_cad = models.DateTimeField(blank=True, null=True)
-    flag_ativo = models.CharField(max_length=1, blank=True, null=True)
+    flag_ativo = models.CharField(max_length=1, blank=True, null=True, default='S')
 
     class Meta:
         managed = False
@@ -225,15 +233,7 @@ class TbMadrinhaPadrinho(models.Model):
 
     def __str__(self):
         return f"{self.pnome or ''} {self.snome or ''}".strip()
-        
-    @property
-    def cpf_mascarado(self):
-        if not self.cpf: 
-            return ""
-        cpf_limpo = ''.join(filter(str.isdigit, str(self.cpf)))
-        if len(cpf_limpo) == 11:
-            return f"***.***.***-{cpf_limpo[-2:]}"
-        return "***.***.***-**"
+
 
 
 class TbApadrinhamentoCrianca(models.Model):
@@ -258,7 +258,7 @@ class TbEntrega(models.Model):
     estado = models.CharField(max_length=255, blank=True, null=True)
     data_cadastro = models.DateTimeField(blank=True, null=True)
     data_chegada = models.DateTimeField(blank=True, null=True)
-    flag_finalizado = models.CharField(max_length=1, blank=True, null=True)
+    flag_finalizado = models.CharField(max_length=1, blank=True, null=True, default='N')
 
     class Meta:
         managed = False
@@ -274,7 +274,7 @@ class TbEvento(models.Model):
     bairro = models.CharField(max_length=255, blank=True, null=True)
     cidade = models.CharField(max_length=255, blank=True, null=True)
     estado = models.CharField(max_length=225, blank=True, null=True)
-    flag_finalizado = models.CharField(max_length=1, blank=True, null=True)
+    flag_finalizado = models.CharField(max_length=1, blank=True, null=True, default='N')
 
     class Meta:
         managed = False

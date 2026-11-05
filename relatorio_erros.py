@@ -138,8 +138,8 @@ def main():
         ),
         run_command(
             "Testes do Django",
-            [sys.executable, "manage.py", "test"],
-            "python manage.py test",
+            [sys.executable, "manage.py", "test", "--settings=setup.settings_test"],
+            "python manage.py test --settings=setup.settings_test",
         ),
     ]
     passed_count, failed_count = write_report(destination, syntax_result, command_results)

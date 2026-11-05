@@ -24,6 +24,11 @@ if not CRYPTOGRAPHY_KEY:
         raise ImproperlyConfigured('CRÍTICO: Defina CRYPTOGRAPHY_KEY no ambiente de produção.')
     CRYPTOGRAPHY_KEY = 'chave-super-secreta-ong-naire-2026'
 
+# CHAVE DO HASH DE CPF (coluna cpf_hash: deduplicação e busca por CPF)
+# Se não for definida, usa a CRYPTOGRAPHY_KEY. ATENÇÃO: depois de definida,
+# NÃO troque. Se trocar, rode `python manage.py preencher_cpf_hash` de novo.
+CPF_HASH_KEY = os.environ.get('CPF_HASH_KEY') or CRYPTOGRAPHY_KEY
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')

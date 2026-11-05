@@ -59,8 +59,8 @@
                                    placeholder="Digite o CPF" 
                                    name="cpf" 
                                    maxlength="14"
-                                   value="{{ registro.cpf|default:'' }}">
-                            <small class="text-muted">Apenas números</small>
+                                   value="{{ registro.cpf_mascarado }}">
+                            <small class="text-muted">Para manter o CPF atual, deixe o campo como está.</small>
                         </div>
                         
                         <!-- Anonimato -->

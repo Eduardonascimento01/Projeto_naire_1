@@ -94,8 +94,8 @@
                                         <i class="bi bi-credit-card"></i> CPF
                                     </label>
                                     <input type="text" name="cpf" class="form-control form-control-lg shadow-sm cpf-mask" 
-                                           placeholder="000.000.000-00" value="{{ dados.cpf|default_if_none:'' }}">
-                                    <small class="text-muted">Opcional</small>
+                                           placeholder="000.000.000-00" value="{{ dados.cpf_mascarado }}">
+                                    <small class="text-muted">Opcional. Para manter o CPF atual, deixe o campo como está.</small>
                                 </div>
                             </div>
 
@@ -478,7 +478,8 @@
             
             // Validar CPF se preenchido
             const cpf = cpfInput.value.replace(/\D/g, '');
-            if (cpf && cpf.length !== 11) {
+            const cpfMascarado = cpfInput.value.includes('*');
+            if (!cpfMascarado && cpf && cpf.length !== 11) {
                 e.preventDefault();
                 Swal.fire({
                     icon: 'error',

@@ -36,7 +36,7 @@
         <div class="form-group" id="campo_cpf">
             <label>CPF</label>
             <input type="text" name="cpf" class="form-control" 
-                   value="{{ registro.cpf|default:'' }}" placeholder="000.000.000-00">
+                   value="{{ registro.cpf_mascarado|default:'' }}" placeholder="000.000.000-00">
             <small class="text-muted">Obrigatório apenas se não for anônimo</small>
         </div>
         

@@ -79,7 +79,8 @@
                                         <i class="bi bi-credit-card"></i> CPF *
                                     </label>
                                     <input type="text" name="cpf" class="form-control form-control-lg shadow-sm cpf-mask" 
-                                           value="{{ item.cpf }}" required>
+                                           value="{{ item.cpf_mascarado }}" required>
+                                    <small class="text-muted">Para manter o CPF atual, deixe o campo como está.</small>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">
@@ -469,7 +470,8 @@
             
             // Validar CPF
             const cpf = cpfInput.value.replace(/\D/g, '');
-            if (cpf.length !== 11) {
+            const cpfMascarado = cpfInput.value.includes('*');
+            if (!cpfMascarado && cpf.length !== 11) {
                 Swal.fire({
                     icon: 'error',
                     title: 'CPF Inválido',

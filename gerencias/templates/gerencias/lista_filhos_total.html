@@ -171,7 +171,7 @@
                         <td>
                             {% if filho.cpf %}
                                 <!-- SEGURANÇA: Máscara LGPD no CPF -->
-                                <code>{{ filho.cpf|slice:":3" }}.***.***-{{ filho.cpf|slice:"9:11" }}</code>
+                                <code>{{ filho.cpf_mascarado }}</code>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
@@ -211,7 +211,7 @@
                         <td>
                             <div class="btn-group" role="group">
                                 {% if filho.flag_ativo == 'S' %}
-                                    <form action="{% url 'desativar_filho' id_responsavel=filho.id_responsavel %}" 
+                                    <form action="{% url 'desativar_filho' id_responsavel=filho.id_responsavel_id %}" 
                                         method="POST" 
                                         style="display: inline-block;"
                                         class="desativar-form"

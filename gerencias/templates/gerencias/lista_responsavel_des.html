@@ -140,7 +140,7 @@
                     {% for item in dados %}
                     <tr class="responsavel-row" 
                         data-nome="{{ item.pnome }} {{ item.snome }}"
-                        data-cpf="{{ item.cpf }}"
+                        data-cpf="{{ item.cpf_mascarado }}"
                         data-cidade="{{ item.cidade }}"
                         data-validado="{{ item.flag_validado }}"
                         data-trabalha="{{ item.flag_responsavel_trabalha }}">
@@ -168,7 +168,7 @@
                             </div>
                         </td>
                         <td>
-                            <code>{{ item.cpf|slice:":3" }}.{{ item.cpf|slice:"3:6" }}.{{ item.cpf|slice:"6:9" }}-{{ item.cpf|slice:"9:11" }}</code>
+                            <code>{{ item.cpf_mascarado }}</code>
                         </td>
                         <td>
                             <small>
