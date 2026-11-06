@@ -93,9 +93,25 @@
             if (aviso) campo.dataset.erroServidor = aviso.textContent.trim();
         });
 
+        // Clique no botão de enviar: o campo perde o foco ANTES do clique terminar.
+        // Se o aviso aparecesse nessa hora, ele empurraria o botão para baixo e o
+        // clique se perderia (era preciso clicar duas vezes). Nesse caso o aviso
+        // fica para o envio, que confere todos os campos logo em seguida.
+        form.querySelectorAll('[type="submit"]').forEach(function (botao) {
+            botao.addEventListener('pointerdown', function () {
+                form._clicandoEnviar = true;
+                setTimeout(function () { form._clicandoEnviar = false; }, 600);
+            });
+        });
+
         // Avisa ao SAIR do campo; depois disso, atualiza a cada tecla.
         campos(form).forEach(function (campo) {
-            campo.addEventListener('blur', function () { campo.dataset.tocado = '1'; mostrar(campo); });
+            campo.addEventListener('blur', function (e) {
+                campo.dataset.tocado = '1';
+                var indoParaEnviar = e.relatedTarget && e.relatedTarget.type === 'submit' && e.relatedTarget.form === form;
+                if (form._clicandoEnviar || indoParaEnviar) return;
+                mostrar(campo);
+            });
             var evento = campo.tagName === 'SELECT' ? 'change' : 'input';
             campo.addEventListener(evento, function () {
                 if (campo.tagName === 'SELECT') campo.dataset.tocado = '1';

@@ -14,6 +14,8 @@
         <nav class="navbar navbar-expand-lg naire-menu" data-bs-theme="light">
             <div class="container-fluid">
                 <a class="navbar-brand" href="{% url 'home' %}">HOME</a>
+                {% if user.is_authenticated and user.is_staff %}
+                <!-- Menu com as funções: só para quem entrou e faz parte da equipe -->
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
                 </button>
@@ -203,31 +205,27 @@
                                 <li><hr class="dropdown-divider"></li>                        
                             </ul>
                         </li>
-                        {% if user.is_authenticated %}
-                            <li class="nav-item">
-                                <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-primary btn-sm">
-                                        Sair
-                                    </button>
-                                </form>
-                            </li>
-                        {% else %}
-                            <li class="nav-item">
-                                <form action="{% url 'signup' %}" method="POST" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="nav-link active" style="background: none; border: none; color: inherit;">Cadastrar</button>
-                                </form>
-                            </li>
-                            <li class="nav-item">
-                                <form action="{% url 'login' %}" method="POST" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="nav-link active" style="background: none; border: none; color: inherit;">Entrar</button>
-                                </form>
-                            </li>
-                        {% endif %}
+                        <li class="nav-item">
+                            <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    Sair
+                                </button>
+                            </form>
+                        </li>
                     </ul>
                 </div>
+                {% elif user.is_authenticated %}
+                <!-- Conta sem acesso às funções (não é da equipe): só pode sair -->
+                <form action="{% url 'logout' %}" method="post" class="ms-auto">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Sair</button>
+                </form>
+                {% else %}
+                <span class="navbar-text small text-muted ms-auto">
+                    <i class="bi bi-lock"></i> Acesso restrito à equipe
+                </span>
+                {% endif %}
             </div>
         </nav>
         </header>

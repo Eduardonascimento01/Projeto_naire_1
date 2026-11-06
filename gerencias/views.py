@@ -4,8 +4,9 @@ from datetime import datetime, date
 from functools import wraps
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.contrib.auth import get_user_model, login as auth_login, update_session_auth_hash
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
@@ -14,6 +15,7 @@ from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 # GRUPO_LGPD: membros (e superusuários) podem exportar, anonimizar e excluir.
 from gerencias.permissoes import GRUPO_LGPD, pode_usar_lgpd
@@ -262,8 +264,33 @@ def _anonimizar_endereco(obj, estado='--'):
 # ==========================================
 # PÁGINAS BASE
 # ==========================================
+def _destino_seguro(request, destino):
+    """
+    Só aceita voltar para uma página DESTE sistema. Sem isso, um link como
+    /?next=https://site-falso.com levaria a pessoa, depois do login, para um
+    site que imita o sistema (golpe de "redirecionamento aberto").
+    """
+    if destino and url_has_allowed_host_and_scheme(
+            destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return destino
+    return ''
+
+
 def home(request):
-    return render(request, 'gerencias/index.html')
+    """
+    Página inicial. Quem não entrou vê o cartão de login (o menu fica oculto);
+    é também para cá que o sistema manda quem tenta abrir uma página sem login.
+    """
+    destino = _destino_seguro(request, request.POST.get('next') or request.GET.get('next'))
+    form_login = None
+    if not request.user.is_authenticated:
+        # O AuthenticationForm passa pelo django-axes: o bloqueio depois de
+        # várias senhas erradas continua valendo aqui.
+        form_login = AuthenticationForm(request, data=request.POST or None)
+        if request.method == 'POST' and form_login.is_valid():
+            auth_login(request, form_login.get_user())
+            return redirect(destino or 'home')
+    return render(request, 'gerencias/index.html', {'form_login': form_login, 'next': destino})
 
 
 def pagina_erro(request, mensagem="Ocorreu um erro interno no processamento.", status=500):

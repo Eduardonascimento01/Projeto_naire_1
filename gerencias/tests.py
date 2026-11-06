@@ -931,3 +931,56 @@ class AcessoNaEdicaoTests(CenarioFuncionarios):
         resposta = self.trocar(self.admin, func, senha='12345678')
         self.assertEqual(resposta.status_code, 400)
         self.assertTrue(self.entra('beto.lima', self.SENHA))
+
+
+# ----------------------------------------------------------------------
+# Página inicial: menu oculto e login para quem não entrou
+# ----------------------------------------------------------------------
+class InicioELoginTests(TestCase):
+    SENHA = 'Girassol-Azul-2026'
+
+    def setUp(self):
+        self.user = User.objects.create_user('equipe', password=self.SENHA, is_staff=True)
+
+    def test_sem_login_menu_oculto_e_cartao_de_login(self):
+        pagina = self.client.get(reverse('home')).content.decode()
+        self.assertIn('id="formLogin"', pagina)
+        for item in ('FUNCIONÁRIOS', 'RESPONSÁVEL', 'MADRINHAS', 'OFÍCIOS', 'Cadastrar'):
+            self.assertNotIn(item, pagina)
+
+    def test_pagina_protegida_manda_para_o_login_no_inicio(self):
+        resposta = self.client.get(reverse('lista_responsavel'))
+        self.assertRedirects(resposta, '/?next=/gerencias/lista_responsavel/', fetch_redirect_response=False)
+        pagina = self.client.get(resposta['Location']).content.decode()
+        self.assertIn('Entre para continuar', pagina)
+
+    def test_login_leva_para_a_pagina_que_a_pessoa_tentou_abrir(self):
+        resposta = self.client.post(reverse('home'), {
+            'username': 'equipe', 'password': self.SENHA, 'next': '/gerencias/lista_responsavel/'})
+        self.assertRedirects(resposta, '/gerencias/lista_responsavel/', fetch_redirect_response=False)
+        pagina = self.client.get(reverse('home')).content.decode()
+        self.assertIn('FUNCIONÁRIOS', pagina)        # agora o menu aparece
+        self.assertNotIn('id="formLogin"', pagina)   # e o cartão de login some
+
+    def test_link_para_site_externo_e_ignorado(self):
+        """Golpe do redirecionamento aberto: depois do login, nunca ir para outro site."""
+        resposta = self.client.post(reverse('home'), {
+            'username': 'equipe', 'password': self.SENHA, 'next': 'https://site-falso.com/naire'})
+        self.assertRedirects(resposta, reverse('home'), fetch_redirect_response=False)
+        pagina = self.client.get('/?next=//site-falso.com').content.decode()
+        self.assertNotIn('site-falso', pagina)
+
+    def test_senha_errada_mostra_aviso_e_mantem_o_usuario(self):
+        resposta = self.client.post(reverse('home'), {'username': 'equipe', 'password': 'errada'})
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, 'alert-danger')
+        self.assertContains(resposta, 'value="equipe"')
+        self.assertNotContains(resposta, 'FUNCIONÁRIOS')
+
+    def test_conta_que_nao_e_da_equipe_nao_ve_o_menu(self):
+        User.objects.create_user('visitante', password=self.SENHA, is_staff=False)
+        self.client.post(reverse('home'), {'username': 'visitante', 'password': self.SENHA})
+        pagina = self.client.get(reverse('home')).content.decode()
+        self.assertNotIn('FUNCIONÁRIOS', pagina)
+        self.assertIn('não tem acesso às funções', pagina)
+        self.assertIn(reverse('logout'), pagina)       # mas consegue sair
