@@ -149,9 +149,9 @@ USE_I18N = True
 USE_TZ = True
 
 # Arquivos estáticos (CSS, JavaScript, Imagens) e redirecionamento de Login/Logout
-# O login fica na página inicial: quem abre uma página protegida sem login
-# é levado para lá (com ?next= para voltar à página depois de entrar).
-LOGIN_URL = 'home'
+# Quem abre uma página protegida sem login vai para a tela de login
+# (com ?next= para voltar à página depois de entrar).
+LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 STATIC_URL = '/assets/'

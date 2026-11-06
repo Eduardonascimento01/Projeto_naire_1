@@ -2,114 +2,66 @@
 {% load static %}
 
 {% block page_title %}
-    Login | NAIRE
+    Acesso à equipe | NAIRE
 {% endblock %}
 
 {% block container %}
-<div class="login-container">
-    <div class="container">
-        <div class="row justify-content-center align-items-center min-vh-100">
-            <div class="col-lg-5 col-md-7 col-10">
-                <!-- Card principal -->
-                <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-                    <!-- Header gradiente -->
-                    <div class="card-header bg-gradient-primary text-white text-center p-4 border-0">
-                        <div class="mb-3">
-                            <i class="bi bi-box-arrow-in-right fs-1"></i>
-                        </div>
-                        <h3 class="fw-bold mb-1">FAZER LOGIN</h3>
-                        <p class="mb-0 opacity-75">Acesse sua conta NAIRE</p>
-                    </div>
-                    
-                    <!-- Corpo do formulário -->
-                    <div class="card-body p-4 p-lg-5">
-                        <form method="post" class="needs-validation">
-                            {% csrf_token %}
-                            
-                            {% if form.non_field_errors %}
-                            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                {% for error in form.non_field_errors %}
-                                    {{ error }}
-                                {% endfor %}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                            {% endif %}
-                            
-                            {% for field in form %}
-                            <div class="mb-4">
-                                <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
-                                    {% if field.name == 'username' %}
-                                        <i class="bi bi-person-circle me-1"></i> Usuário
-                                    {% elif field.name == 'password' %}
-                                        <i class="bi bi-key me-1"></i> Senha
-                                    {% else %}
-                                        <i class="bi bi-input-cursor me-1"></i> {{ field.label }}
-                                    {% endif %}
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">
-                                        {% if field.name == 'username' %}
-                                            <i class="bi bi-person text-muted"></i>
-                                        {% elif field.name == 'password' %}
-                                            <i class="bi bi-lock text-muted"></i>
-                                        {% else %}
-                                            <i class="bi bi-pencil text-muted"></i>
-                                        {% endif %}
-                                    </span>
-                                    {{ field }}
-                                </div>
-                                {% if field.help_text %}
-                                    <small class="text-muted mt-1 d-block">{{ field.help_text }}</small>
-                                {% endif %}
-                                {% for error in field.errors %}
-                                    <div class="text-danger small mt-1">
-                                        <i class="bi bi-exclamation-circle"></i> {{ error }}
-                                    </div>
-                                {% endfor %}
-                            </div>
-                            {% endfor %}
-                            
-                            <!-- Lembrar-me -->
-                            <div class="mb-4 form-check">
-                                <input type="checkbox" class="form-check-input" id="remember" name="remember">
-                                <label class="form-check-label text-muted" for="remember">
-                                    <i class="bi bi-check-square"></i> Lembrar-me
-                                </label>
-                            </div>
-                            
-                            <!-- Botão de envio -->
-                            <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
-                                <i class="bi bi-box-arrow-in-right"></i> Entrar no Sistema
-                            </button>
-                            
-                            <!-- Links adicionais -->
-                            <div class="text-center mt-3">
-                                <a href="#" class="text-decoration-none small">
-                                    <i class="bi bi-question-circle"></i> Esqueceu sua senha?
-                                </a>
-                                <span class="mx-2 text-muted">|</span>
-                                <a href="#" class="text-decoration-none small">
-                                    <i class="bi bi-person-plus"></i> Criar nova conta
-                                </a>
-                            </div>
-                        </form>
-                    </div>
-                    
-                    <!-- Footer -->
-                    <div class="card-footer bg-light text-center py-3 border-0">
-                        <small class="text-muted">
-                            <i class="bi bi-heart-fill text-danger"></i> 
-                            Sistema NAIRE - Transformando vidas
-                        </small>
-                    </div>
+<div class="container py-4 py-lg-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-sm-10 col-md-7 col-lg-5">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="card-header text-white text-center p-4 border-0 login-topo">
+                    <i class="bi bi-shield-lock fs-1"></i>
+                    <h1 class="h3 fw-bold mt-2 mb-1">Acesso à equipe</h1>
+                    <p class="mb-0 opacity-75">Sistema de gestão da ONG NAIRE</p>
                 </div>
-                
-                <!-- Informação adicional -->
-                <div class="text-center mt-4">
-                    <p class="text-white-50 small">
-                        <i class="bi bi-shield-check"></i> Conexão segura | 
-                        <i class="bi bi-clock-history"></i> Sessão expira em 30 minutos
+
+                <div class="card-body p-4 p-lg-5">
+                    {% if next %}
+                        <div class="alert alert-info small py-2">
+                            <i class="bi bi-info-circle"></i> Entre para continuar.
+                        </div>
+                    {% endif %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger small py-2" role="alert">
+                            {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <form method="post" action="{% url 'login' %}" id="formLogin" novalidate>
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ next }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="login-usuario">Usuário</label>
+                            <input type="text" name="username" id="login-usuario" class="form-control" required
+                                   autocomplete="username" autocapitalize="none" spellcheck="false" autofocus
+                                   value="{{ form.username.value|default:'' }}"
+                                   data-msg-obrigatorio="Informe o seu usuário.">
+                            <div class="invalid-feedback">Informe o seu usuário.</div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold" for="login-senha">Senha</label>
+                            <input type="password" name="password" id="login-senha" class="form-control" required
+                                   autocomplete="current-password"
+                                   data-msg-obrigatorio="Informe a sua senha.">
+                            <div class="invalid-feedback">Informe a sua senha.</div>
+                        </div>
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="login-exibir">
+                            <label class="form-check-label" for="login-exibir">Exibir senha</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-box-arrow-in-right"></i> Entrar
+                        </button>
+                    </form>
+
+                    <p class="text-muted small text-center mt-4 mb-2">
+                        Esqueceu a senha? Peça a um administrador para trocá-la.
+                    </p>
+                    <p class="text-center mb-0">
+                        <a href="{% url 'home' %}" class="small text-decoration-none">
+                            <i class="bi bi-arrow-left"></i> Voltar ao site
+                        </a>
                     </p>
                 </div>
             </div>
@@ -118,264 +70,25 @@
 </div>
 
 <style>
-    /* Container com gradiente de fundo */
-    .login-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    /* Efeito de bolhas no fundo */
-    .login-container::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
-        background-size: 50px 50px;
-        animation: moveBackground 20s linear infinite;
-    }
-    
-    @keyframes moveBackground {
-        0% {
-            transform: translate(0, 0);
-        }
-        100% {
-            transform: translate(50px, 50px);
-        }
-    }
-    
-    /* Gradiente para o header */
-    .bg-gradient-primary {
+    .login-topo {
         background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
-    }
-    
-    /* Card com animação */
-    .card {
-        animation: fadeInUp 0.6s ease-out;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        backdrop-filter: blur(10px);
-        background: rgba(255, 255, 255, 0.95);
-    }
-    
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
-    }
-    
-    /* Estilização dos campos do Django form */
-    .form-control {
-        border: 2px solid #e9ecef;
-        border-left: none;
-        transition: all 0.3s ease;
-        font-size: 1rem;
-        padding: 0.75rem 1rem;
-    }
-    
-    .input-group-text {
-        background-color: #fff;
-        border: 2px solid #e9ecef;
-        border-right: none;
-        transition: all 0.3s ease;
-    }
-    
-    .form-control:focus {
-        border-color: #1abc9c;
-        box-shadow: none;
-    }
-    
-    .form-control:focus + .input-group-text {
-        border-color: #1abc9c;
-    }
-    
-    .input-group:focus-within .input-group-text {
-        border-color: #1abc9c;
-        background-color: #fff;
-    }
-    
-    /* Estilização específica para os inputs do form.as_p */
-    form p {
-        margin-bottom: 1.5rem;
-    }
-    
-    form label {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: #2c3e50;
-        display: block;
-    }
-    
-    form input {
-        width: 100%;
-        padding: 0.75rem 1rem;
-        border: 2px solid #e9ecef;
-        border-radius: 12px;
-        transition: all 0.3s ease;
-    }
-    
-    form input:focus {
-        border-color: #1abc9c;
-        outline: none;
-        box-shadow: 0 0 0 0.2rem rgba(26, 188, 156, 0.25);
-    }
-    
-    /* Botão primário */
-    .btn-primary {
-        background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
-        border: none;
-        transition: all 0.3s ease;
-        font-weight: 600;
-        letter-spacing: 1px;
-        padding: 0.75rem;
-        border-radius: 12px;
-    }
-    
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(26, 188, 156, 0.4);
-    }
-    
-    .btn-primary:active {
-        transform: translateY(0);
-    }
-    
-    /* Checkbox personalizado */
-    .form-check-input {
-        width: 1.2rem;
-        height: 1.2rem;
-        margin-top: 0.1rem;
-        cursor: pointer;
-    }
-    
-    .form-check-input:checked {
-        background-color: #1abc9c;
-        border-color: #1abc9c;
-    }
-    
-    .form-check-label {
-        cursor: pointer;
-        margin-left: 0.5rem;
-    }
-    
-    /* Links */
-    a {
-        color: #1abc9c;
-        transition: color 0.3s ease;
-        text-decoration: none;
-    }
-    
-    a:hover {
-        color: #16a085 !important;
-        text-decoration: underline;
-    }
-    
-    /* Alertas */
-    .alert {
-        border-radius: 12px;
-        border-left: 4px solid #e74c3c;
-        background-color: #fee;
-    }
-    
-    /* Animações */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    /* Responsividade */
-    @media (max-width: 768px) {
-        .card-body {
-            padding: 1.5rem !important;
-        }
-        
-        .btn-lg {
-            font-size: 1rem;
-            padding: 0.75rem 1rem;
-        }
-        
-        .display-5 {
-            font-size: 1.8rem;
-        }
-    }
-    
-    /* Estilização do footer */
-    .card-footer {
-        background: rgba(248, 249, 250, 0.9);
-    }
-    
-    /* Placeholder estilizado */
-    ::placeholder {
-        color: #adb5bd;
-        font-size: 0.9rem;
-    }
-    
-    /* Scrollbar personalizada */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: #1abc9c;
-        border-radius: 10px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: #16a085;
-    }
-    
-    /* Ícones */
-    .bi {
-        vertical-align: middle;
-    }
-    
-    /* Altura mínima para alinhamento vertical */
-    .min-vh-100 {
-        min-height: 100vh;
-    }
-    
-    /* Estilização dos parágrafos do form.as_p */
-    .card-body form p {
-        position: relative;
-    }
-    
-    /* Melhorias para campos obrigatórios */
-    form label:after {
-        content: " *";
-        color: #e74c3c;
-        font-weight: bold;
-    }
-    
-    /* Remover asterisco do campo remember */
-    .form-check label:after {
-        content: "";
-    }
-    
-    /* Estilo para os inputs */
-    form input[type="text"],
-    form input[type="password"],
-    form input[type="email"] {
-        width: 100%;
-        padding: 0.75rem 1rem;
-        border: 2px solid #e9ecef;
-        border-radius: 12px;
-        font-size: 1rem;
     }
 </style>
 
-<!-- Bootstrap Icons -->
+<script src="{% static 'js/naire-validacao.js' %}"></script>
+<script>
+    // Avisa se usuário ou senha ficaram vazios, e "Exibir senha".
+    document.addEventListener('DOMContentLoaded', function () {
+        var form = document.getElementById('formLogin');
+        NaireValidacao.ativar(form);
+        form.addEventListener('submit', function (e) {
+            if (!NaireValidacao.validarTudo(form)) e.preventDefault();
+        });
+        var exibir = document.getElementById('login-exibir');
+        var senha = document.getElementById('login-senha');
+        exibir.addEventListener('change', function () { senha.type = exibir.checked ? 'text' : 'password'; });
+    });
+</script>
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 {% endblock %}

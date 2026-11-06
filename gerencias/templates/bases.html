@@ -222,9 +222,12 @@
                     <button type="submit" class="btn btn-outline-secondary btn-sm">Sair</button>
                 </form>
                 {% else %}
-                <span class="navbar-text small text-muted ms-auto">
-                    <i class="bi bi-lock"></i> Acesso restrito à equipe
-                </span>
+                {% if request.resolver_match.url_name != 'login' %}
+                <!-- Visitante: o site é o blog de notícias; a equipe entra por aqui -->
+                <a href="{% url 'login' %}" class="btn btn-primary btn-sm ms-auto">
+                    <i class="bi bi-lock"></i> Acesso à equipe
+                </a>
+                {% endif %}
                 {% endif %}
             </div>
         </nav>

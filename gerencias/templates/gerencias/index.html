@@ -8,67 +8,7 @@
 {% block container %}
 <div class="blog-container">
     <div class="container py-4">
-        {% if not user.is_authenticated %}
-        <!-- Acesso ao sistema: o menu com as funções só aparece depois do login -->
-        <section class="row g-4 align-items-center mb-5 naire-acesso" id="login">
-            <div class="col-lg-7">
-                <h1 class="fw-bold mb-2">ONG NAIRE</h1>
-                <p class="lead text-muted mb-3">Sistema de gestão de famílias, crianças, apadrinhamentos e entregas.</p>
-                <p class="text-muted mb-0">
-                    <i class="bi bi-shield-lock"></i>
-                    Acesso restrito à equipe. Entre com o usuário e a senha que o administrador cadastrou para você.
-                </p>
-            </div>
-            <div class="col-lg-5">
-                <div class="card border-0 shadow">
-                    <div class="card-body p-4">
-                        <h2 class="h4 fw-bold mb-3"><i class="bi bi-box-arrow-in-right text-primary"></i> Entrar</h2>
-
-                        {% if next %}
-                            <div class="alert alert-info small py-2">
-                                <i class="bi bi-info-circle"></i> Entre para continuar.
-                            </div>
-                        {% endif %}
-                        {% if form_login.non_field_errors %}
-                            <div class="alert alert-danger small py-2" role="alert">
-                                {% for erro in form_login.non_field_errors %}{{ erro }}{% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <form method="post" action="{% url 'home' %}" id="formLogin" novalidate>
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{{ next }}">
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold" for="login-usuario">Usuário</label>
-                                <input type="text" name="username" id="login-usuario" class="form-control" required
-                                       autocomplete="username" autocapitalize="none" spellcheck="false" autofocus
-                                       value="{{ form_login.username.value|default:'' }}"
-                                       data-msg-obrigatorio="Informe o seu usuário.">
-                                <div class="invalid-feedback">Informe o seu usuário.</div>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label fw-semibold" for="login-senha">Senha</label>
-                                <input type="password" name="password" id="login-senha" class="form-control" required
-                                       autocomplete="current-password"
-                                       data-msg-obrigatorio="Informe a sua senha.">
-                                <div class="invalid-feedback">Informe a sua senha.</div>
-                            </div>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="login-exibir">
-                                <label class="form-check-label" for="login-exibir">Exibir senha</label>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-box-arrow-in-right"></i> Entrar
-                            </button>
-                        </form>
-                        <p class="text-muted small mt-3 mb-0">
-                            Esqueceu a senha? Peça a um administrador para trocá-la.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </section>
-        {% elif not user.is_staff %}
+        {% if user.is_authenticated and not user.is_staff %}
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle"></i>
             A sua conta não tem acesso às funções do sistema. Fale com um administrador.
@@ -366,19 +306,4 @@
 
 <!-- Adicione isso no seu base.html ou aqui -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-<script src="{% static 'js/naire-validacao.js' %}"></script>
-<script>
-    // Login: avisa se usuário ou senha ficaram vazios, e "Exibir senha".
-    document.addEventListener('DOMContentLoaded', function () {
-        var form = document.getElementById('formLogin');
-        if (!form) return;
-        NaireValidacao.ativar(form);
-        form.addEventListener('submit', function (e) {
-            if (!NaireValidacao.validarTudo(form)) e.preventDefault();
-        });
-        var exibir = document.getElementById('login-exibir');
-        var senha = document.getElementById('login-senha');
-        exibir.addEventListener('change', function () { senha.type = exibir.checked ? 'text' : 'password'; });
-    });
-</script>
 {% endblock %}

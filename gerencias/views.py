@@ -277,20 +277,26 @@ def _destino_seguro(request, destino):
 
 
 def home(request):
+    """Página inicial: o blog de notícias da ONG, aberto a todos."""
+    return render(request, 'gerencias/index.html')
+
+
+def entrar(request):
     """
-    Página inicial. Quem não entrou vê o cartão de login (o menu fica oculto);
-    é também para cá que o sistema manda quem tenta abrir uma página sem login.
+    Tela de login da equipe (botão "Acesso à equipe" no topo do site).
+    Quem tenta abrir uma página do sistema sem login também vem para cá e,
+    depois de entrar, volta para a página que tinha pedido.
     """
     destino = _destino_seguro(request, request.POST.get('next') or request.GET.get('next'))
-    form_login = None
-    if not request.user.is_authenticated:
-        # O AuthenticationForm passa pelo django-axes: o bloqueio depois de
-        # várias senhas erradas continua valendo aqui.
-        form_login = AuthenticationForm(request, data=request.POST or None)
-        if request.method == 'POST' and form_login.is_valid():
-            auth_login(request, form_login.get_user())
-            return redirect(destino or 'home')
-    return render(request, 'gerencias/index.html', {'form_login': form_login, 'next': destino})
+    if request.user.is_authenticated:
+        return redirect(destino or 'home')
+    # O AuthenticationForm passa pelo django-axes: o bloqueio depois de
+    # várias senhas erradas continua valendo aqui.
+    form = AuthenticationForm(request, data=request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        auth_login(request, form.get_user())
+        return redirect(destino or 'home')
+    return render(request, 'registration/login.html', {'form': form, 'next': destino})
 
 
 def pagina_erro(request, mensagem="Ocorreu um erro interno no processamento.", status=500):
