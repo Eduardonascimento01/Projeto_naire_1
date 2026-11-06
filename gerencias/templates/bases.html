@@ -236,6 +236,23 @@
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
         <script>
+            // Texto de uma célula de tabela, sem as quebras de linha e os espaços
+            // do HTML. Usado pelos botões "Exportar": sem isso, um campo como o CPF
+            // levava quebras de linha para o CSV e bagunçava as colunas no Excel.
+            window.textoCelula = function (celula) {
+                return ((celula && celula.textContent) || '').replace(/\s+/g, ' ').trim();
+            };
+
+            // Linhas da tabela que estão aparecendo (as que a busca/filtro não escondeu).
+            // Substitui o ":visible", que só existe no jQuery (que o projeto não usa):
+            // com ele, o botão "Exportar Lista" dava erro e nunca baixava nada.
+            window.linhasVisiveis = function (seletor) {
+                return Array.prototype.filter.call(document.querySelectorAll(seletor), function (linha) {
+                    return getComputedStyle(linha).display !== 'none';
+                });
+            };
+        </script>
+        <script>
             // Botão "LGPD" das tabelas: liga/desliga os botões de exportar e anonimizar.
             // A escolha fica guardada neste navegador (localStorage). Começa desligado.
             (function () {

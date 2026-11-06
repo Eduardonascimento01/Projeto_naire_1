@@ -407,18 +407,19 @@
         
         // Exportar lista
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.evento-row:visible');
+            const visibleRows = linhasVisiveis('.evento-row');
             let csvContent = "ID,Nome,Data Evento,Endereço,Cidade,UF,Status\n";
             
             visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
+                const id = textoCelula(row.cells[0]).replace('#', '') || '';
                 const nome = row.cells[1]?.querySelector('strong')?.textContent || '';
-                const dataEvento = row.cells[2]?.textContent.trim() || '';
-                const endereco = row.cells[3]?.textContent.replace('📍', '').trim() || '';
-                const cidadeUf = row.cells[4]?.textContent.trim() || '';
-                const status = row.cells[6]?.textContent.trim() || '';
+                const dataEvento = textoCelula(row.cells[2]).trim() || '';
+                const endereco = textoCelula(row.cells[3]).replace('📍', '').trim() || '';
+                // A célula mostra "Cidade/UF"; o cabeçalho tem as duas colunas separadas.
+                const [cidade, uf = ''] = textoCelula(row.cells[4]).split('/');
+                const status = textoCelula(row.cells[6]).trim() || '';
                 
-                csvContent += `${id},"${nome}","${dataEvento}","${endereco}","${cidadeUf}","${status}"\n`;
+                csvContent += `${id},"${nome}","${dataEvento}","${endereco}","${cidade.trim()}","${uf.trim()}","${status}"\n`;
             });
             
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });

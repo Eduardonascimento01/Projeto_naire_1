@@ -517,3 +517,38 @@ class AjustesTabelasTests(BaseLogado):
         pagina = self.client.get(reverse('lista_responsavel'))
         self.assertContains(pagina, botao)
         self.assertContains(pagina, 'class="acoes-lgpd"')
+
+    def test_buscar_criancas_sem_responsavel_e_sem_acoes(self):
+        resp = criar_responsavel()
+        TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='Zeca', data_nascimento='10/05/2018', flag_ativo='S')
+        pagina = self.client.post(reverse('buscar_filhos'), {'termo_busca': 'Zeca', 'tipo_busca': 'nome'}).content.decode()
+        self.assertNotIn('RESPONSÁVEL</th>', pagina)
+        self.assertNotIn('AÇÃO</th>', pagina)
+        self.assertNotIn(reverse('desativar_filho', args=[resp.pk]), pagina)
+        self.assertIn(reverse('lista_filhos', args=[resp.pk]), pagina)
+        self.assertIn('**/**/2018', pagina)
+        self.assertNotIn('10/05/2018', pagina)
+
+    def test_funcionarios_desativados_mascaram_telefone_e_endereco(self):
+        tipo = TbTipoFuncionario.objects.create(descricao='Voluntário')
+        TbFuncionario.objects.create(id_tipo=tipo, pnome='F', snome='G', cpf=CPF_A, telefone='11987654321',
+                                     endereco='Rua Secreta, 99', bairro='Centro', cidade='C', estado='SP', flag_ativo='N')
+        pagina = self.client.get(reverse('lista_funcionarios_desativos')).content.decode()
+        self.assertNotIn('11987654321', pagina)
+        self.assertNotIn('Rua Secreta', pagina)
+        self.assertIn('(11) *****-4321', pagina)
+        self.assertIn('Oculto - LGPD', pagina)
+
+
+class JavascriptDosTemplatesTests(TestCase):
+    def test_nenhum_template_usa_seletor_exclusivo_do_jquery(self):
+        """':visible' só existe no jQuery, que o projeto não carrega; no JavaScript
+        puro ele dá erro e o botão "Exportar" deixava de funcionar."""
+        import pathlib, re
+        pasta = pathlib.Path(__file__).parent / 'templates'
+        problemas = [
+            str(arq.relative_to(pasta))
+            for arq in pasta.rglob('*.html')
+            if re.search(r"querySelector(All)?\([^)]*:visible", arq.read_text(encoding='utf-8'))
+        ]
+        self.assertEqual(problemas, [])

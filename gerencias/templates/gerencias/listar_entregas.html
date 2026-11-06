@@ -422,19 +422,20 @@
         
         // Exportar lista
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.entrega-row:visible');
+            const visibleRows = linhasVisiveis('.entrega-row');
             let csvContent = "ID,ID Evento,ID Apoiador,ID Criança,Endereço,Cidade,UF,Status\n";
             
             visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
-                const idEvento = row.cells[1]?.textContent.replace('🎁', '').trim() || '';
-                const idApoiador = row.cells[2]?.textContent.replace('👤', '').trim() || '';
-                const idCrianca = row.cells[3]?.textContent.replace('👶', '').trim() || '';
-                const endereco = row.cells[4]?.textContent.trim() || '';
-                const cidadeUf = row.cells[5]?.textContent.trim() || '';
-                const status = row.cells[7]?.textContent.trim() || '';
+                const id = textoCelula(row.cells[0]).replace('#', '') || '';
+                const idEvento = textoCelula(row.cells[1]).replace(/\D/g, '');
+                const idApoiador = textoCelula(row.cells[2]).replace(/\D/g, '');
+                const idCrianca = textoCelula(row.cells[3]).replace(/\D/g, '');
+                const endereco = textoCelula(row.cells[4]).trim() || '';
+                // A célula mostra "Cidade/UF"; o cabeçalho tem as duas colunas separadas.
+                const [cidade, uf = ''] = textoCelula(row.cells[5]).split('/');
+                const status = textoCelula(row.cells[7]).trim() || '';
                 
-                csvContent += `${id},${idEvento},${idApoiador},${idCrianca},"${endereco}","${cidadeUf}","${status}"\n`;
+                csvContent += `${id},${idEvento},${idApoiador},${idCrianca},"${endereco}","${cidade.trim()}","${uf.trim()}","${status}"\n`;
             });
             
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
