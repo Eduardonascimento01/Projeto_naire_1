@@ -463,3 +463,10 @@ class BotoesLgpdTests(BaseLogado):
         self.assertNotContains(self.client.get(reverse('lista_oficio')), url_excluir)
         self.dar_permissao_lgpd()
         self.assertContains(self.client.get(reverse('lista_oficio')), url_excluir)
+
+
+class VisualTests(BaseLogado):
+    def test_paginas_carregam_o_css_global(self):
+        pagina = self.client.get(reverse('lista_responsavel'))
+        self.assertContains(pagina, '/assets/css/naire.css')
+        self.assertContains(pagina, '<body class="naire">')
