@@ -231,7 +231,7 @@
                             </div>
                             <div class="col-12">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="exibirSenha">
+                                    <input class="form-check-input" type="checkbox" id="exibirSenha" data-exibir-senha>
                                     <label class="form-check-label" for="exibirSenha">Exibir senha</label>
                                 </div>
                             </div>
@@ -414,13 +414,11 @@
     }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="{% static 'js/naire-validacao.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('formFuncionario');
-    const senha = document.getElementById('senha');
-    const senha2 = document.getElementById('senha2');
     const usuario = document.getElementById('usuario');
-    const situacaoUsuario = { valor: null, disponivel: null };  // resposta do servidor
 
     // Selects que voltam preenchidos depois de um erro no servidor
     form.querySelectorAll('select[data-valor]').forEach(sel => {
@@ -441,102 +439,13 @@ document.addEventListener('DOMContentLoaded', function () {
         this.value = v;
     });
 
-    // ---------- Regras de cada campo ----------
-    function cpfValido(cpf) {
-        cpf = cpf.replace(/\D/g, '');
-        if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
-        for (const t of [9, 10]) {
-            let soma = 0;
-            for (let i = 0; i < t; i++) soma += Number(cpf[i]) * (t + 1 - i);
-            if ((soma * 10) % 11 % 10 !== Number(cpf[t])) return false;
-        }
-        return true;
-    }
-
-    // Devolve a mensagem de erro do campo, ou '' se estiver certo.
-    function erroDoCampo(campo) {
-        const valor = campo.value.trim();
-        // Erro apontado pelo servidor (ex.: CPF já cadastrado) vale até o valor mudar.
-        if (campo.dataset.erroServidor && campo.value === campo.dataset.valorServidor) return campo.dataset.erroServidor;
-        if (campo.required && !valor) return campo.dataset.msgObrigatorio || 'Campo obrigatório.';
-        switch (campo.dataset.validar) {
-            case 'cpf':
-                return cpfValido(valor) ? '' : 'CPF inválido. Confira os números.';
-            case 'telefone': {
-                const n = valor.replace(/\D/g, '').length;
-                return n === 10 || n === 11 ? '' : 'Informe o telefone com DDD (10 ou 11 dígitos).';
-            }
-            case 'usuario':
-                if (!/^[\w.@+-]{3,150}$/.test(valor)) return 'Use de 3 a 150 caracteres: letras, números e . @ + - _ (sem espaços).';
-                if (situacaoUsuario.valor === valor && situacaoUsuario.disponivel === false) return 'Este nome de usuário já está em uso. Escolha outro.';
-                return '';
-            case 'senha':
-                if (campo.value.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
-                if (/^\d+$/.test(campo.value)) return 'A senha não pode ter só números.';
-                return '';
-            case 'senha2':
-                return campo.value === senha.value ? '' : 'As senhas não são iguais.';
-        }
-        return '';
-    }
-
-    function mostrar(campo) {
-        const erro = erroDoCampo(campo);
-        const aviso = campo.parentElement.querySelector('.invalid-feedback');
-        if (aviso && erro) aviso.textContent = erro;
-        campo.classList.toggle('is-invalid', !!erro);
-        campo.classList.toggle('is-valid', !erro && campo.value.trim() !== '');
-        return !erro;
-    }
-
-    // Avisa ao SAIR do campo; depois disso, atualiza a cada tecla.
-    const campos = form.querySelectorAll('[required], [data-validar]');
-    campos.forEach(campo => {
-        campo.addEventListener('blur', () => { campo.dataset.tocado = '1'; mostrar(campo); });
-        const evento = campo.tagName === 'SELECT' ? 'change' : 'input';
-        campo.addEventListener(evento, () => {
-            if (campo.tagName === 'SELECT') campo.dataset.tocado = '1';
-            if (campo.dataset.tocado) mostrar(campo);
-        });
-    });
-    // Mudou a senha: a confirmação precisa ser conferida de novo.
-    senha.addEventListener('input', () => { if (senha2.dataset.tocado) mostrar(senha2); });
-
-    // ---------- Usuário: confere no servidor se já existe ----------
-    let espera;
-    function conferirUsuario() {
-        const valor = usuario.value.trim();
-        if (!/^[\w.@+-]{3,150}$/.test(valor)) return;
-        fetch(`${form.dataset.urlUsuario}?usuario=${encodeURIComponent(valor)}`, { credentials: 'same-origin' })
-            .then(r => r.json())
-            .then(resp => {
-                situacaoUsuario.valor = valor;
-                situacaoUsuario.disponivel = resp.disponivel;
-                if (usuario.value.trim() === valor) { usuario.dataset.tocado = '1'; mostrar(usuario); }
-            })
-            .catch(() => {});  // sem resposta: o servidor confere de novo ao cadastrar
-    }
-    usuario.addEventListener('input', () => { clearTimeout(espera); espera = setTimeout(conferirUsuario, 400); });
-    usuario.addEventListener('blur', conferirUsuario);
-
-    // ---------- Exibir senha ----------
-    document.getElementById('exibirSenha').addEventListener('change', function () {
-        senha.type = senha2.type = this.checked ? 'text' : 'password';
-    });
+    // Avisos campo a campo (regras em static/js/naire-validacao.js)
+    NaireValidacao.ativar(form);
 
     // ---------- Envio ----------
     form.addEventListener('submit', function (e) {
         e.preventDefault();
-        let primeiroErro = null;
-        campos.forEach(campo => {
-            campo.dataset.tocado = '1';
-            if (!mostrar(campo) && !primeiroErro) primeiroErro = campo;
-        });
-        if (primeiroErro) {
-            primeiroErro.focus();
-            primeiroErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return;
-        }
+        if (!NaireValidacao.validarTudo(form)) return;
         Swal.fire({
             title: 'Confirmar cadastro',
             text: `Cadastrar o funcionário e criar o login "${usuario.value.trim()}"?`,
@@ -556,12 +465,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Erros vindos do servidor: guarda a mensagem e leva a pessoa ao primeiro campo.
-    form.querySelectorAll('.is-invalid').forEach(campo => {
-        campo.dataset.tocado = '1';
-        campo.dataset.valorServidor = campo.value;
-        campo.dataset.erroServidor = campo.parentElement.querySelector('.invalid-feedback').textContent.trim();
-    });
+    // Erro vindo do servidor: leva a pessoa ao primeiro campo com problema.
     const erroServidor = form.querySelector('.is-invalid');
     if (erroServidor) erroServidor.scrollIntoView({ block: 'center' });
 });

@@ -4,7 +4,7 @@ from datetime import datetime, date
 from functools import wraps
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -334,6 +334,43 @@ def _sincronizar_login(funcionario):
     usuario.save(update_fields=['is_active', 'is_superuser', 'is_staff', 'first_name', 'last_name'])
 
 
+def _erro_usuario(usuario):
+    """Confere o nome de login. Devolve a mensagem de erro ou None."""
+    if not usuario:
+        return 'Escolha um nome de usuário para o login.'
+    if not FORMATO_USUARIO.match(usuario):
+        return 'Use de 3 a 150 caracteres: letras, números e . @ + - _ (sem espaços).'
+    if User.objects.filter(username__iexact=usuario).exists():
+        return 'Este nome de usuário já está em uso. Escolha outro.'
+    return None
+
+
+def _erros_senha(senha, senha2, usuario):
+    """
+    Confere a senha e a confirmação com as regras do Django (mínimo de 8
+    caracteres, não só números, não muito comum, não parecida com o nome).
+    `usuario` é o User (pode ainda não estar salvo). Devolve {campo: mensagem}.
+    """
+    erros = {}
+    if not senha:
+        erros['senha'] = 'Crie uma senha.'
+    if not senha2:
+        erros['senha2'] = 'Repita a senha.'
+    elif senha and senha != senha2:
+        erros['senha2'] = 'As senhas não são iguais.'
+    if senha:
+        try:
+            validate_password(senha, user=usuario)
+        except ValidationError as e:
+            erros['senha'] = ' '.join(e.messages)
+    return erros
+
+
+def _pode_trocar_senha(request, login):
+    """Só um administrador troca a senha de outra pessoa; cada um troca a própria."""
+    return login is not None and (request.user.is_superuser or login.pk == request.user.pk)
+
+
 def _contexto_form_funcionario(request, dados=None, erros=None):
     return {
         'tipos': TbTipoFuncionario.objects.order_by('id_tipo'),
@@ -392,22 +429,11 @@ def _validar_novo_funcionario(request):
         erros['telefone'] = 'Informe o telefone com DDD (10 ou 11 dígitos).'
 
     usuario = dados.get('usuario', '')
-    if usuario and not FORMATO_USUARIO.match(usuario):
-        erros['usuario'] = 'Use de 3 a 150 caracteres: letras, números e . @ + - _ (sem espaços).'
-    elif usuario and User.objects.filter(username__iexact=usuario).exists():
-        erros['usuario'] = 'Este nome de usuário já está em uso. Escolha outro.'
-
-    senha, senha2 = request.POST.get('senha') or '', request.POST.get('senha2') or ''
-    if senha and senha2 and senha != senha2:
-        erros['senha2'] = 'As senhas não são iguais.'
-    if senha and 'senha' not in erros:
-        try:
-            # As mesmas regras do Django (mínimo de 8 caracteres, não só números,
-            # não muito comum, não parecida com o nome do usuário).
-            validate_password(senha, user=User(username=usuario, first_name=dados.get('pnome', ''),
-                                                last_name=dados.get('snome', '')))
-        except ValidationError as e:
-            erros['senha'] = ' '.join(e.messages)
+    erro = _erro_usuario(usuario)
+    if erro:
+        erros['usuario'] = erro
+    novo_login = User(username=usuario, first_name=dados.get('pnome', ''), last_name=dados.get('snome', ''))
+    erros.update(_erros_senha(request.POST.get('senha') or '', request.POST.get('senha2') or '', novo_login))
     return dados, tipo, cpf, erros
 
 
@@ -534,6 +560,18 @@ def atualiza_funcionario(request):
     return redirect('lista_funcionarios')
 
 
+def _tela_editar_funcionario(request, funcionario, erros_acesso=None, form_acesso=None, status=200):
+    login = _usuario_do_funcionario(funcionario)
+    return render(request, 'gerencias/editar_funcionario.html', {
+        'dados': [funcionario],
+        'pode_criar_admin': request.user.is_superuser,
+        'login': login,
+        'pode_trocar_senha': _pode_trocar_senha(request, login),
+        'erros_acesso': erros_acesso or {},
+        'form_acesso': form_acesso or {},
+    }, status=status)
+
+
 @login_required
 @tratar_erros
 def editar_funcionario(request, id_funcionario):
@@ -541,11 +579,83 @@ def editar_funcionario(request, id_funcionario):
     bloqueio = _bloquear_se_admin(request, funcionario)
     if bloqueio:
         return bloqueio
-    return render(request, 'gerencias/editar_funcionario.html', {
-        'dados': [funcionario],
-        'pode_criar_admin': request.user.is_superuser,
-        'login': _usuario_do_funcionario(funcionario),
-    })
+    return _tela_editar_funcionario(request, funcionario)
+
+
+@login_required
+@somente_post
+@tratar_erros
+def criar_acesso_funcionario(request, id_funcionario):
+    """Cria o login de um funcionário cadastrado antes do acesso por senha."""
+    funcionario = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_admin(request, funcionario)
+    if bloqueio:
+        return bloqueio
+    if _usuario_do_funcionario(funcionario) is not None:
+        messages.error(request, 'Este funcionário já tem acesso ao sistema.')
+        return redirect('editar_funcionario', id_funcionario=funcionario.pk)
+
+    usuario = (request.POST.get('usuario') or '').strip()
+    erros = {}
+    erro = _erro_usuario(usuario)
+    if erro:
+        erros['usuario'] = erro
+    novo_login = User(username=usuario, first_name=funcionario.pnome or '', last_name=funcionario.snome or '')
+    erros.update(_erros_senha(request.POST.get('senha') or '', request.POST.get('senha2') or '', novo_login))
+    if erros:
+        messages.error(request, 'Confira os campos de acesso destacados em vermelho.')
+        return _tela_editar_funcionario(request, funcionario, erros, {'usuario': usuario}, status=400)
+
+    try:
+        with transaction.atomic():
+            login = User.objects.create_user(
+                username=usuario, password=request.POST['senha'],
+                first_name=(funcionario.pnome or '')[:150], last_name=(funcionario.snome or '')[:150],
+                is_staff=True, is_superuser=_funcionario_e_admin(funcionario),
+                is_active=funcionario.flag_ativo == 'S',
+            )
+            TbFuncionarioUsuario.objects.create(funcionario=funcionario, usuario=login)
+    except IntegrityError:
+        messages.error(request, 'Este nome de usuário acabou de ser usado por outra pessoa. Escolha outro.')
+        return _tela_editar_funcionario(request, funcionario, {}, {'usuario': usuario}, status=400)
+
+    _registrar_auditoria(request, 'CRIACAO_ACESSO', f'/func/{funcionario.pk}')
+    messages.success(request, f'Acesso criado para {funcionario}. Login: {login.username}')
+    return redirect('editar_funcionario', id_funcionario=funcionario.pk)
+
+
+@login_required
+@somente_post
+@tratar_erros
+def trocar_senha_funcionario(request, id_funcionario):
+    funcionario = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_admin(request, funcionario)
+    if bloqueio:
+        return bloqueio
+    login = _usuario_do_funcionario(funcionario)
+    if login is None:
+        messages.error(request, 'Este funcionário ainda não tem acesso. Crie o acesso primeiro.')
+        return redirect('editar_funcionario', id_funcionario=funcionario.pk)
+    if not _pode_trocar_senha(request, login):
+        # Senão um membro poderia trocar a senha de um colega e entrar como ele.
+        logger.warning("%s tentou trocar a senha de %s", request.user.username, login.username)
+        messages.error(request, 'Somente um administrador pode trocar a senha de outra pessoa.')
+        return redirect('editar_funcionario', id_funcionario=funcionario.pk)
+
+    senha = request.POST.get('senha') or ''
+    erros = _erros_senha(senha, request.POST.get('senha2') or '', login)
+    if erros:
+        messages.error(request, 'Confira a nova senha.')
+        return _tela_editar_funcionario(request, funcionario, erros, status=400)
+
+    login.set_password(senha)
+    login.save(update_fields=['password'])
+    if login.pk == request.user.pk:
+        # Trocou a própria senha: continua logado (senão o Django encerraria a sessão).
+        update_session_auth_hash(request, login)
+    _registrar_auditoria(request, 'TROCA_SENHA', f'/func/{funcionario.pk}')
+    messages.success(request, f'Senha de {login.username} alterada.')
+    return redirect('editar_funcionario', id_funcionario=funcionario.pk)
 
 
 # ==========================================

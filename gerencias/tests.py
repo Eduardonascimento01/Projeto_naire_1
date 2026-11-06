@@ -700,7 +700,8 @@ class NovoPadrinhoTests(BaseLogado):
 # ----------------------------------------------------------------------
 # Cadastro de funcionário com login e regra do administrador
 # ----------------------------------------------------------------------
-class FuncionarioComLoginTests(TestCase):
+class CenarioFuncionarios(TestCase):
+    """Tipos de funcionário, um administrador ('chefe') e um membro ('membro'). Sem testes."""
     SENHA = 'Girassol-Azul-2026'
 
     def setUp(self):
@@ -729,6 +730,9 @@ class FuncionarioComLoginTests(TestCase):
         self.client.force_login(quem)
         return self.client.post(reverse('insere_novo_funcionario'), self.dados(**extra), follow=True)
 
+
+
+class FuncionarioComLoginTests(CenarioFuncionarios):
     def test_membro_cadastrado_ganha_login_normal(self):
         resposta = self.cadastrar(self.membro)
         self.assertContains(resposta, 'Login: ana.souza')
@@ -837,3 +841,93 @@ class FuncionarioComLoginTests(TestCase):
                          ['ADMIN', 'MEMBRO', 'CONTRATADO', 'VOLUNTARIO'])
         func.refresh_from_db()
         self.assertEqual(func.id_tipo_id, 2)   # não virou administrador
+
+
+class AcessoNaEdicaoTests(CenarioFuncionarios):
+    NOVA = 'Orquidea-Lilas-2027'
+
+    def funcionario_sem_login(self, tipo='VOLUNTARIO'):
+        return TbFuncionario.objects.create(id_tipo=self.tipos[tipo], pnome='Beto', snome='Lima', cpf=CPF_B,
+                                            endereco='R', bairro='B', cidade='C', estado='SP', flag_ativo='S')
+
+    def criar_acesso(self, quem, func, **extra):
+        self.client.force_login(quem)
+        dados = {'usuario': 'beto.lima', 'senha': self.SENHA, 'senha2': self.SENHA}
+        dados.update(extra)
+        return self.client.post(reverse('criar_acesso_funcionario', args=[func.pk]), dados, follow=True)
+
+    def trocar(self, quem, func, senha=None):
+        self.client.force_login(quem)
+        senha = senha or self.NOVA
+        return self.client.post(reverse('trocar_senha_funcionario', args=[func.pk]),
+                                {'senha': senha, 'senha2': senha}, follow=True)
+
+    def test_edicao_mostra_criar_acesso_para_quem_nao_tem_login(self):
+        func = self.funcionario_sem_login()
+        self.client.force_login(self.membro)
+        pagina = self.client.get(reverse('editar_funcionario', args=[func.pk])).content.decode()
+        self.assertIn('id="formCriarAcesso"', pagina)
+        self.assertNotIn('id="formTrocarSenha"', pagina)
+
+    def test_criar_acesso_para_funcionario_antigo(self):
+        func = self.funcionario_sem_login()
+        resposta = self.criar_acesso(self.membro, func)
+        self.assertContains(resposta, 'Acesso criado para Beto Lima. Login: beto.lima')
+        self.assertTrue(self.Link.objects.filter(funcionario=func, usuario__username='beto.lima').exists())
+        self.assertTrue(self.entra('beto.lima', self.SENHA))
+        # Não dá para criar um segundo acesso
+        resposta = self.criar_acesso(self.membro, func, usuario='beto.dois')
+        self.assertContains(resposta, 'já tem acesso')
+        self.assertFalse(User.objects.filter(username='beto.dois').exists())
+
+    def test_criar_acesso_com_erro_volta_preenchido(self):
+        func = self.funcionario_sem_login()
+        resposta = self.criar_acesso(self.membro, func, senha2='Diferente-123')
+        self.assertContains(resposta, 'As senhas não são iguais', status_code=400)
+        self.assertContains(resposta, 'value="beto.lima"', status_code=400)
+        self.assertNotContains(resposta, self.SENHA, status_code=400)
+        self.assertFalse(User.objects.filter(username='beto.lima').exists())
+
+    def test_membro_nao_cria_acesso_de_administrador(self):
+        func = self.funcionario_sem_login(tipo='ADMIN')
+        self.criar_acesso(self.membro, func)
+        self.assertFalse(User.objects.filter(username='beto.lima').exists())
+        self.criar_acesso(self.admin, func)
+        self.assertTrue(User.objects.get(username='beto.lima').is_superuser)
+
+    def test_administrador_troca_senha_de_outra_pessoa(self):
+        func = self.funcionario_sem_login()
+        self.criar_acesso(self.membro, func)
+        resposta = self.trocar(self.admin, func)
+        self.assertContains(resposta, 'Senha de beto.lima alterada')
+        self.assertTrue(self.entra('beto.lima', self.NOVA))
+        self.assertFalse(self.entra('beto.lima', self.SENHA))
+
+    def test_membro_nao_troca_senha_de_colega(self):
+        func = self.funcionario_sem_login()
+        self.criar_acesso(self.admin, func)
+        pagina = self.client.get(reverse('editar_funcionario', args=[func.pk]))
+        self.client.force_login(self.membro)
+        pagina = self.client.get(reverse('editar_funcionario', args=[func.pk])).content.decode()
+        self.assertNotIn('id="formTrocarSenha"', pagina)
+        self.assertIn('Somente um administrador pode trocar a senha de outra pessoa', pagina)
+        resposta = self.trocar(self.membro, func)                 # tentativa direta, sem a tela
+        self.assertContains(resposta, 'Somente um administrador pode trocar a senha')
+        self.assertTrue(self.entra('beto.lima', self.SENHA))      # senha continua a mesma
+
+    def test_cada_um_troca_a_propria_senha_e_continua_logado(self):
+        func = self.funcionario_sem_login()
+        self.criar_acesso(self.membro, func)
+        beto = User.objects.get(username='beto.lima')
+        resposta = self.trocar(beto, func)
+        self.assertContains(resposta, 'Senha de beto.lima alterada')
+        # Continua logado depois de trocar a própria senha
+        self.assertEqual(self.client.get(reverse('lista_funcionarios')).status_code, 200)
+        self.assertTrue(self.entra('beto.lima', self.NOVA))
+
+    def test_senha_fraca_na_troca_e_recusada(self):
+        func = self.funcionario_sem_login()
+        self.criar_acesso(self.membro, func)
+        resposta = self.trocar(self.admin, func, senha='12345678')
+        self.assertEqual(resposta.status_code, 400)
+        self.assertTrue(self.entra('beto.lima', self.SENHA))
