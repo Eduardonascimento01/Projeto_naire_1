@@ -248,6 +248,11 @@
         {% block container %}{% endblock%}
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+        <!-- Avisos campo a campo em todos os formulários com campos obrigatórios -->
+        <script src="{% static 'js/naire-validacao.js' %}"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () { NaireValidacao.ativarTodos(); });
+        </script>
         <script>
             // Texto de uma célula de tabela, sem as quebras de linha e os espaços
             // do HTML. Usado pelos botões "Exportar": sem isso, um campo como o CPF

@@ -198,6 +198,11 @@
                         </td>
                         <td>
                             <div class="btn-group" role="group">
+                                <!-- Editar: antes nenhuma página levava à edição da criança -->
+                                <a href="{% url 'editar_filho' id_filho=filho.id_filho %}" class="btn btn-outline-primary btn-sm"
+                                   title="Editar os dados da criança">
+                                    <i class="bi bi-pencil-square"></i> Editar
+                                </a>
                                 <form action="{% url 'desativar_filho' id_responsavel=id_responsavel %}" 
                                     method="POST" 
                                     style="display: inline-block;">

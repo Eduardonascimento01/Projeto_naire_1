@@ -450,4 +450,22 @@
 
 <!-- Bootstrap Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<script>
+    // Quem escolhe ficar anônimo não precisa informar nome e sobrenome
+    // (o sistema grava "Anônimo"). Os avisos campo a campo respeitam isso.
+    document.addEventListener('DOMContentLoaded', function () {
+        var anonimo = document.querySelector('select[name="anonimo"]');
+        var nomes = document.querySelectorAll('input[name="pnome"], input[name="snome"]');
+        if (!anonimo) return;
+        function ajustar() {
+            var anon = anonimo.value === 'S';
+            nomes.forEach(function (c) {
+                c.required = !anon;
+                if (anon) c.classList.remove('is-invalid');
+            });
+        }
+        anonimo.addEventListener('change', ajustar);
+        ajustar();
+    });
+</script>
 {% endblock %}

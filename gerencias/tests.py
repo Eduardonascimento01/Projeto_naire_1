@@ -87,7 +87,8 @@ class CadastroApareceNaListaTests(BaseLogado):
     def test_crianca_nova_aparece_em_lista_filhos(self):
         resp = criar_responsavel()
         self.client.post(reverse('insere_novo_filho'), {
-            'responsavel': resp.pk, 'pnome': 'Joao', 'snome': 'Silva', 'sexo': 'M',
+            'responsavel': resp.pk, 'filho-0-pnome': 'Joao', 'filho-0-snome': 'Silva',
+            'filho-0-dt_nasc': '10/05/2018', 'filho-0-sexo': 'M',
         })
         filho = TbFilhosResponsavel.objects.get()
         self.assertEqual(filho.flag_ativo, 'S')
@@ -199,7 +200,7 @@ class CpfNaoVazaNoHtmlTests(BaseLogado):
     def test_editar_com_mascara_mantem_cpf(self):
         resp = criar_responsavel()
         self.client.post(reverse('atualiza_responsavel'), {
-            'id_responsavel': resp.pk, 'pnome': 'Maria', 'snome': 'Nova',
+            'id_responsavel': resp.pk, 'pnome': 'Maria', 'endereco': 'Rua A, 1', 'snome': 'Nova',
             'cpf': '***.***.***-25', 'dt_nasc': '', 'bairro': 'B', 'cidade': 'C', 'estado': 'SP',
             'validado': 'S', 'ativo': 'S',
         })
@@ -210,7 +211,7 @@ class CpfNaoVazaNoHtmlTests(BaseLogado):
     def test_data_nascimento_em_branco_nao_apaga(self):
         resp = criar_responsavel(data_nascimento='10/05/1990')
         self.client.post(reverse('atualiza_responsavel'), {
-            'id_responsavel': resp.pk, 'pnome': 'Maria', 'cpf': '***', 'dt_nasc': '',
+            'id_responsavel': resp.pk, 'pnome': 'Maria', 'snome': 'Silva', 'endereco': 'Rua A, 1', 'cpf': '***', 'dt_nasc': '',
             'bairro': 'B', 'cidade': 'C', 'estado': 'SP',
         })
         resp.refresh_from_db()
@@ -288,7 +289,8 @@ class EdicaoCriancaTests(BaseLogado):
         resp = criar_responsavel()
         filho = TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='F', flag_ativo='S')
         self.client.post(reverse('atualiza_filho', args=[filho.pk]), {
-            'responsavel': resp.pk, 'pnome': 'Novo Nome', 'cpf': '', 'sexo': 'M',
+            'responsavel': resp.pk, 'filho-0-pnome': 'Novo Nome', 'filho-0-snome': 'Silva',
+            'filho-0-dt_nasc': '10/05/2018', 'filho-0-cpf': '', 'filho-0-sexo': 'M',
         })
         self.assertEqual(TbFilhosResponsavel.objects.count(), 1)
         filho.refresh_from_db()
@@ -579,7 +581,7 @@ class SituacaoEmCascataTests(BaseLogado):
     def test_desativar_pelo_formulario_de_edicao_tambem_desativa_as_criancas(self):
         resp, filhos = self._familia()
         self.client.post(reverse('atualiza_responsavel'), {
-            'id_responsavel': resp.pk, 'pnome': 'Maria', 'cpf': '***', 'bairro': 'B',
+            'id_responsavel': resp.pk, 'pnome': 'Maria', 'snome': 'Silva', 'endereco': 'Rua A, 1', 'cpf': '***', 'bairro': 'B',
             'cidade': 'C', 'estado': 'SP', 'ativo': 'N',
         })
         self.assertFalse(TbFilhosResponsavel.objects.filter(flag_ativo='S').exists())
@@ -673,7 +675,7 @@ class ApadrinhamentoAoDesativarCriancaTests(BaseLogado):
 
     def test_familia_desativada_pela_edicao_tambem(self):
         self.client.post(reverse('atualiza_responsavel'), {
-            'id_responsavel': self.resp.pk, 'pnome': 'Maria', 'cpf': '***', 'bairro': 'B',
+            'id_responsavel': self.resp.pk, 'pnome': 'Maria', 'snome': 'Silva', 'endereco': 'Rua A, 1', 'cpf': '***', 'bairro': 'B',
             'cidade': 'C', 'estado': 'SP', 'ativo': 'N',
         })
         self.assertEqual(self.Apad.objects.count(), 1)
@@ -1090,3 +1092,157 @@ class FamiliaComCriancasTests(BaseLogado):
         for aviso in ('Informe o endereço.', 'Informe o bairro.', 'Informe a data de nascimento.'):
             self.assertIn(aviso, html)
         self.assertEqual(resposta.status_code, 400)
+
+
+# ----------------------------------------------------------------------
+# Telas de adicionar e editar UMA criança (mesmas regras do cadastro de família)
+# ----------------------------------------------------------------------
+class CriancaAvulsaTests(BaseLogado):
+    def setUp(self):
+        super().setUp()
+        self.resp = criar_responsavel(snome='Prado')
+
+    def dados(self, **extra):
+        d = {'pnome': 'Bia', 'snome': 'Prado', 'dt_nasc': '01/02/2024', 'cpf': '', 'sexo': 'F',
+             'roupa': '', 'sapato': '', 'outra_ong': 'N'}
+        d.update(extra)
+        return {'responsavel': self.resp.pk, **{f'filho-0-{k}': v for k, v in d.items()}}
+
+    def test_crianca_pequena_sem_cpf_roupa_e_sapato(self):
+        resposta = self.client.post(reverse('insere_novo_filho'), self.dados(), follow=True)
+        self.assertContains(resposta, 'Bia Prado foi cadastrado(a)')
+        bia = TbFilhosResponsavel.objects.get()
+        self.assertEqual((bia.cpf, bia.numero_roupa, bia.numero_sapato), (None, None, None))
+
+    def test_sapato_com_letras_nao_da_mais_erro_500(self):
+        resposta = self.client.post(reverse('insere_novo_filho'), self.dados(sapato='28a'))
+        self.assertEqual(resposta.status_code, 400)
+        self.assertContains(resposta, 'Use só números', status_code=400)
+        self.assertContains(resposta, 'value="Bia"', status_code=400)       # volta preenchido
+        self.assertFalse(TbFilhosResponsavel.objects.exists())
+
+    def test_nome_e_data_conferidos_no_servidor(self):
+        resposta = self.client.post(reverse('insere_novo_filho'), self.dados(pnome='', dt_nasc='30/02/2020'))
+        self.assertContains(resposta, 'Informe o nome da criança.', status_code=400)
+        self.assertContains(resposta, 'Data inválida', status_code=400)
+
+    def test_formulario_novo_ja_traz_o_sobrenome_da_familia(self):
+        pagina = self.client.get(reverse('novo_filho', args=[self.resp.pk])).content.decode()
+        self.assertIn('value="Prado"', pagina)
+        self.assertIn('crianças pequenas muitas vezes não têm', pagina)
+
+    def _filho(self, **extra):
+        d = dict(id_responsavel=self.resp, pnome='Caio', snome='Prado', data_nascimento='05/06/2015',
+                 sexo='M', numero_roupa='10', numero_sapato=30, cpf=CPF_B, flag_ativo='S')
+        d.update(extra)
+        return TbFilhosResponsavel.objects.create(**d)
+
+    def editar(self, filho, **extra):
+        d = {'pnome': 'Caio', 'snome': 'Prado', 'dt_nasc': '05/06/2015', 'cpf': '***.***.***-35',
+             'sexo': 'M', 'roupa': '10', 'sapato': '30', 'outra_ong': 'N'}
+        d.update(extra)
+        return self.client.post(reverse('atualiza_filho', args=[filho.pk]),
+                                {f'filho-0-{k}': v for k, v in d.items()}, follow=True)
+
+    def test_edicao_pode_apagar_roupa_e_sapato(self):
+        """Antes, apagar o sapato e salvar fazia o número antigo voltar."""
+        caio = self._filho()
+        self.editar(caio, roupa='', sapato='')
+        caio.refresh_from_db()
+        self.assertEqual((caio.numero_roupa, caio.numero_sapato), (None, None))
+        self.assertEqual(caio.cpf, CPF_B)                     # máscara mantida = CPF mantido
+
+    def test_edicao_pode_apagar_o_cpf(self):
+        caio = self._filho()
+        self.editar(caio, cpf='')
+        caio.refresh_from_db()
+        self.assertIsNone(caio.cpf)
+
+    def test_edicao_mostra_os_dados_atuais_com_cpf_mascarado(self):
+        caio = self._filho()
+        pagina = self.client.get(reverse('editar_filho', args=[caio.pk])).content.decode()
+        for valor in ('value="Caio"', 'value="05/06/2015"', 'value="10"', 'value="30"', '***.***.***-35'):
+            self.assertIn(valor, pagina)
+        self.assertNotIn(CPF_B, pagina)
+
+    def test_cancelar_da_edicao_e_um_link_e_nao_salva(self):
+        """Antes o "Cancelar" ficava dentro do formulário e pedia para SALVAR."""
+        caio = self._filho()
+        pagina = self.client.get(reverse('editar_filho', args=[caio.pk])).content.decode()
+        self.assertRegex(pagina, r'<a href="%s" class="btn btn-outline-secondary btn-lg px-4">\s*<i class="bi bi-x-circle"></i> Cancelar'
+                         % reverse('lista_filhos', args=[self.resp.pk]))
+
+    def test_edicao_com_erro_volta_preenchida(self):
+        caio = self._filho()
+        resposta = self.editar(caio, pnome='Caio Novo', sapato='trinta')
+        self.assertContains(resposta, 'Use só números', status_code=400)
+        self.assertContains(resposta, 'value="Caio Novo"', status_code=400)
+        caio.refresh_from_db()
+        self.assertEqual(caio.pnome, 'Caio')                   # nada foi salvo
+
+
+# ----------------------------------------------------------------------
+# Conferências "onde precisar": entregas, ofício, responsável, padrinho, ids
+# ----------------------------------------------------------------------
+class ConferenciasGeraisTests(BaseLogado):
+    def test_entrega_sem_escolhas_avisa_em_vez_de_erro_500(self):
+        resposta = self.client.post(reverse('insere_nova_entrega'),
+                                    {'id_evento': '', 'id_mad_pad': '', 'id_crianca': ''}, follow=True)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, 'Escolha o evento, o padrinho/madrinha, a criança')
+        self.assertFalse(TbEntrega.objects.exists())
+
+    def test_entrega_com_so_a_crianca_faltando(self):
+        ev = TbEvento.objects.create(nome='Natal', data_evento='24/12/2026')
+        mp = TbMadrinhaPadrinho.objects.create(pnome='P', flag_ativo='S')
+        resposta = self.client.post(reverse('insere_nova_entrega'),
+                                    {'id_evento': ev.pk, 'id_mad_pad': mp.pk, 'id_crianca': 'abc'}, follow=True)
+        self.assertContains(resposta, 'Escolha a criança para registrar a entrega')
+
+    def test_id_estranho_no_formulario_da_404_e_nao_500(self):
+        self.assertEqual(self.client.post(reverse('atualiza_responsavel'), {'id_responsavel': 'xyz'}).status_code, 404)
+        self.assertEqual(self.client.post(reverse('insere_novo_filho'), {'responsavel': ''}).status_code, 404)
+
+    def test_oficio_sem_destinatario_ou_mensagem(self):
+        from gerencias.models import TbOficios
+        resposta = self.client.post(reverse('insere_novo_oficio'), {'destinatario': ' ', 'mensagem': 'Oi'}, follow=True)
+        self.assertContains(resposta, 'Preencha o destinatário e a mensagem')
+        self.assertFalse(TbOficios.objects.exists())
+
+    def test_editar_responsavel_sem_nome_nao_apaga(self):
+        resp = criar_responsavel()
+        resposta = self.client.post(reverse('atualiza_responsavel'), {
+            'id_responsavel': resp.pk, 'pnome': '', 'snome': 'Silva', 'cpf': '***', 'endereco': 'R',
+            'bairro': 'B', 'cidade': 'C', 'estado': 'SP'}, follow=True)
+        self.assertContains(resposta, 'Informe o primeiro nome.')
+        resp.refresh_from_db()
+        self.assertEqual(resp.pnome, 'Maria')
+
+    def test_editar_responsavel_com_data_invalida(self):
+        resp = criar_responsavel(data_nascimento='10/05/1990')
+        self.client.post(reverse('atualiza_responsavel'), {
+            'id_responsavel': resp.pk, 'pnome': 'Maria', 'snome': 'Silva', 'cpf': '***', 'dt_nasc': '31/02/1990',
+            'endereco': 'R', 'bairro': 'B', 'cidade': 'C', 'estado': 'SP'})
+        resp.refresh_from_db()
+        self.assertEqual(resp.data_nascimento, '10/05/1990')
+
+    def test_padrinho_anonimo_nao_precisa_de_nome_e_os_outros_precisam(self):
+        self.client.post(reverse('inserir_madrinha_padrinho'), {'anonimo': 'S', 'pnome': '', 'flag_ativo': 'S'})
+        self.assertTrue(TbMadrinhaPadrinho.objects.filter(pnome='Anônimo').exists())
+        resposta = self.client.post(reverse('inserir_madrinha_padrinho'),
+                                    {'anonimo': 'N', 'pnome': '', 'flag_ativo': 'S'}, follow=True)
+        self.assertContains(resposta, 'Informe o nome do padrinho/madrinha')
+        self.assertEqual(TbMadrinhaPadrinho.objects.count(), 1)
+
+    def test_avisos_ligados_em_todas_as_paginas(self):
+        pagina = self.client.get(reverse('novo_evento')).content.decode()
+        self.assertIn('naire-validacao.js', pagina)
+        self.assertIn('NaireValidacao.ativarTodos()', pagina)
+        self.assertIn('data-validar="data-evento"', pagina)
+
+    def test_lista_da_familia_tem_botao_editar_crianca(self):
+        """Antes nenhuma página levava à tela de editar criança."""
+        resp = criar_responsavel()
+        filho = TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='Lia', flag_ativo='S')
+        pagina = self.client.get(reverse('lista_filhos', args=[resp.pk])).content.decode()
+        self.assertIn(f'href="{reverse("editar_filho", args=[filho.pk])}"', pagina)

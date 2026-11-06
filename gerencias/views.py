@@ -253,6 +253,24 @@ def _remover_apadrinhamentos(id_mad_pad):
     return removidos
 
 
+def _buscar_por_id(model, valor):
+    """
+    Busca pelo número (id) que veio do formulário. Vazio ou não numérico
+    devolve None (antes o Django quebrava com erro 500 ao tentar converter).
+    """
+    try:
+        return model.objects.filter(pk=int(str(valor).strip())).first()
+    except (TypeError, ValueError):
+        return None
+
+
+def _buscar_por_id_ou_404(model, valor):
+    obj = _buscar_por_id(model, valor)
+    if obj is None:
+        raise Http404('Registro não encontrado.')
+    return obj
+
+
 def _anonimizar_endereco(obj, estado='--'):
     obj.endereco = "Removido"
     obj.complemento = ""
@@ -555,11 +573,11 @@ def lista_funcionarios_desativos(request):
 @somente_post
 @tratar_erros
 def atualiza_funcionario(request):
-    funcionario = get_object_or_404(TbFuncionario, id_funcionario=request.POST.get('id_funcionario'))
+    funcionario = _buscar_por_id_ou_404(TbFuncionario, request.POST.get('id_funcionario'))
     bloqueio = _bloquear_se_admin(request, funcionario)
     if bloqueio:
         return bloqueio
-    novo_tipo = get_object_or_404(TbTipoFuncionario, id_tipo=request.POST.get('id_tipo'))
+    novo_tipo = _buscar_por_id_ou_404(TbTipoFuncionario, request.POST.get('id_tipo'))
     if _tipo_e_admin(novo_tipo) and not request.user.is_superuser:
         logger.warning("%s tentou promover %s a administrador", request.user.username, funcionario.pk)
         messages.error(request, 'Somente um administrador pode tornar alguém administrador.')
@@ -725,6 +743,45 @@ def _validar_data_nascimento(texto):
     return normal, None
 
 
+def _validar_filho(f, excluir_pk=None, cpfs_vistos=None):
+    """
+    Confere os dados de UMA criança (cadastro de família, adicionar criança e
+    editar criança usam a mesma regra). `f` tem os campos de CAMPOS_FILHO.
+    Obrigatórios: nome, sobrenome, data de nascimento e sexo. CPF, roupa e
+    sapato podem ficar em branco (crianças pequenas muitas vezes não têm).
+    Preenche f['cpf_limpo'] (None = manter o CPF atual, na edição) e devolve os erros.
+    """
+    erros = {c: msg for c, msg in CAMPOS_OBRIGATORIOS_FILHO.items() if not f.get(c)}
+    if f.get('dt_nasc') and 'dt_nasc' not in erros:
+        f['dt_nasc'], erro = _validar_data_nascimento(f['dt_nasc'])
+        if erro:
+            erros['dt_nasc'] = erro
+    if f.get('sexo') and f['sexo'] not in ('M', 'F'):
+        erros['sexo'] = 'Escolha o sexo.'
+    if f.get('sapato') and not (f['sapato'].isdigit() and len(f['sapato']) <= 3):
+        erros['sapato'] = 'Use só números (ex.: 28).'
+
+    bruto = f.get('cpf', '')
+    if excluir_pk is not None and ('*' in bruto or bruto.startswith(PREFIXO_ANONIMO)):
+        f['cpf_limpo'] = None          # edição: a máscara voltou como estava, mantém o CPF
+        return erros
+    cpf = limpar_cpf(bruto)
+    if cpf:
+        vistos = cpfs_vistos if cpfs_vistos is not None else {}
+        if not cpf_valido(cpf):
+            erros['cpf'] = 'CPF inválido. Confira os números.'
+        elif cpf in vistos:
+            erros['cpf'] = f'É o mesmo CPF da criança {vistos[cpf]} deste cadastro.'
+        elif _cpf_duplicado(TbFilhosResponsavel, cpf, excluir_pk=excluir_pk):
+            erros['cpf'] = 'Já existe uma criança cadastrada com este CPF.'
+    f['cpf_limpo'] = cpf
+    return erros
+
+
+def _filho_do_post(request, n):
+    return {campo: (request.POST.get(f'filho-{n}-{campo}') or '').strip() for campo in CAMPOS_FILHO}
+
+
 def _ler_filhos_do_formulario(request):
     """
     Lê as crianças do cadastro de família. Cada bloco do formulário manda seus
@@ -735,29 +792,29 @@ def _ler_filhos_do_formulario(request):
     indices = sorted({int(PADRAO_CAMPO_FILHO.match(k).group(1)) for k in request.POST if PADRAO_CAMPO_FILHO.match(k)})
     filhos, cpfs_vistos = [], {}
     for n in indices:
-        f = {campo: (request.POST.get(f'filho-{n}-{campo}') or '').strip() for campo in CAMPOS_FILHO}
-        erros = {c: msg for c, msg in CAMPOS_OBRIGATORIOS_FILHO.items() if not f[c]}
-        if f['dt_nasc'] and 'dt_nasc' not in erros:
-            f['dt_nasc'], erro = _validar_data_nascimento(f['dt_nasc'])
-            if erro:
-                erros['dt_nasc'] = erro
-        if f['sexo'] and f['sexo'] not in ('M', 'F'):
-            erros['sexo'] = 'Escolha o sexo.'
-        if f['sapato'] and not (f['sapato'].isdigit() and len(f['sapato']) <= 3):
-            erros['sapato'] = 'Use só números (ex.: 28).'
-        cpf = limpar_cpf(f['cpf'])
-        if cpf:
-            if not cpf_valido(cpf):
-                erros['cpf'] = 'CPF inválido. Confira os números.'
-            elif cpf in cpfs_vistos:
-                erros['cpf'] = f'É o mesmo CPF da criança {cpfs_vistos[cpf]} deste cadastro.'
-            elif _cpf_duplicado(TbFilhosResponsavel, cpf):
-                erros['cpf'] = 'Já existe uma criança cadastrada com este CPF.'
-            cpfs_vistos.setdefault(cpf, len(filhos) + 1)
-        f['cpf_limpo'] = cpf
-        f['erros'] = erros
+        f = _filho_do_post(request, n)
+        f['erros'] = _validar_filho(f, cpfs_vistos=cpfs_vistos)
+        if f['cpf_limpo']:
+            cpfs_vistos.setdefault(f['cpf_limpo'], len(filhos) + 1)
         filhos.append(f)
     return filhos
+
+
+def _criar_filho(request, responsavel, f, agora):
+    return TbFilhosResponsavel.objects.create(
+        id_responsavel=responsavel,
+        id_usuario_cad_id=request.user.id,
+        pnome=f['pnome'],
+        snome=f['snome'],
+        data_nascimento=f['dt_nasc'],
+        cpf=f['cpf_limpo'] or None,
+        sexo=f['sexo'],
+        numero_roupa=f['roupa'] or None,
+        numero_sapato=int(f['sapato']) if f['sapato'] else None,
+        cadastro_outra_ong='S' if f['outra_ong'] == 'S' else 'N',
+        data_cadastro=agora,
+        flag_ativo='S',
+    )
 
 
 def _tela_novo_responsavel(request, form=None, erros=None, filhos=None, status=200):
@@ -824,20 +881,7 @@ def insere_novo_responsavel(request):
                 flag_validado='N',
             )
             for f in filhos:
-                TbFilhosResponsavel.objects.create(
-                    id_responsavel=responsavel,
-                    id_usuario_cad_id=request.user.id,
-                    pnome=f['pnome'],
-                    snome=f['snome'],
-                    data_nascimento=f['dt_nasc'],
-                    cpf=f['cpf_limpo'] or None,
-                    sexo=f['sexo'],
-                    numero_roupa=f['roupa'] or None,
-                    numero_sapato=int(f['sapato']) if f['sapato'] else None,
-                    cadastro_outra_ong='S' if f['outra_ong'] == 'S' else 'N',
-                    data_cadastro=agora,
-                    flag_ativo='S',
-                )
+                _criar_filho(request, responsavel, f, agora)
     except IntegrityError:
         # Raro: outra pessoa cadastrou um destes CPFs no mesmo instante.
         messages.error(request, 'Um dos CPFs acabou de ser cadastrado por outra pessoa. Confira e tente de novo.')
@@ -881,9 +925,15 @@ def edit_responsavel(request, id_responsavel):
 @somente_post
 @tratar_erros
 def atualiza_responsavel(request):
-    responsavel = get_object_or_404(TbCadastroResponsavel, pk=request.POST.get('id_responsavel'))
-    responsavel.pnome = request.POST.get('pnome')
-    responsavel.snome = request.POST.get('snome')
+    responsavel = _buscar_por_id_ou_404(TbCadastroResponsavel, request.POST.get('id_responsavel'))
+    # Mesmos obrigatórios do cadastro (a data em branco mantém a que já existe).
+    faltando = [msg for campo, msg in CAMPOS_OBRIGATORIOS_RESPONSAVEL.items()
+                if campo != 'dt_nasc' and not (request.POST.get(campo) or '').strip()]
+    if faltando:
+        messages.error(request, ' '.join(faltando))
+        return redirect('edit_responsavel', id_responsavel=responsavel.pk)
+    responsavel.pnome = request.POST.get('pnome').strip()
+    responsavel.snome = request.POST.get('snome').strip()
 
     cpf, erro = _ler_cpf(request, obrigatorio=True, permitir_mascara=True)
     if erro:
@@ -895,8 +945,11 @@ def atualiza_responsavel(request):
             return redirect('edit_responsavel', id_responsavel=responsavel.pk)
         responsavel.cpf = cpf
 
-    dt_nasc = _normalizar_data(request.POST.get('dt_nasc'))
-    if dt_nasc:  # campo em branco não apaga a data que já existe
+    if (request.POST.get('dt_nasc') or '').strip():  # em branco não apaga a data que já existe
+        dt_nasc, erro = _validar_data_nascimento(request.POST['dt_nasc'])
+        if erro:
+            messages.error(request, f'Data de nascimento: {erro}')
+            return redirect('edit_responsavel', id_responsavel=responsavel.pk)
         responsavel.data_nascimento = dt_nasc
     responsavel.flag_responsavel_trabalha = request.POST.get('resp_trabalha')
     responsavel.flag_conjuge = request.POST.get('flag_conjuge')
@@ -986,7 +1039,7 @@ def lista_filhos_total(request):
 @somente_post
 @tratar_erros
 def desativar_filho(request, id_responsavel):
-    filho = get_object_or_404(TbFilhosResponsavel, id_filho=request.POST.get('id_filho'))
+    filho = _buscar_por_id_ou_404(TbFilhosResponsavel, request.POST.get('id_filho'))
     with transaction.atomic():
         filho.flag_ativo = 'N'
         filho.save(update_fields=['flag_ativo'])
@@ -1005,61 +1058,58 @@ def reativar_filho(request, id_filho):
     return redirect('lista_filhos', id_responsavel=filho.id_responsavel_id)
 
 
+def _tela_filho(request, template, responsavel, filho_form, erros=None, registro=None, status=200):
+    return render(request, template, {
+        'dados': registro or responsavel,
+        'responsavel': responsavel,
+        'id_responsavel': responsavel.pk,
+        'filho': filho_form,
+        'erros': erros or {},
+        'titulo': 'Editar Criança' if registro else 'Nova Criança',
+    }, status=status)
+
+
 @login_required
 @tratar_erros
 def novo_filho(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, id_responsavel=id_responsavel)
-    return render(request, 'gerencias/novo_filho.html', {
-        'dados': responsavel,
-        'id_responsavel': id_responsavel,
-        'titulo': 'Crianças Cadastradas',
-    })
+    filho = {'snome': responsavel.snome or ''}     # o sobrenome da família já vem preenchido
+    return _tela_filho(request, 'gerencias/novo_filho.html', responsavel, filho)
 
 
 @login_required
 @tratar_erros
 def editar_filho(request, id_filho):
     registro = get_object_or_404(TbFilhosResponsavel, id_filho=id_filho)
-    return render(request, 'gerencias/editar_filho.html', {
-        'dados': registro,
-        'id_responsavel': registro.id_responsavel_id,
-        'titulo': 'Editar Criança',
-    })
+    filho = {
+        'pnome': registro.pnome or '', 'snome': registro.snome or '',
+        'dt_nasc': registro.data_nascimento or '', 'cpf': registro.cpf_mascarado,
+        'sexo': registro.sexo or '', 'roupa': registro.numero_roupa or '',
+        'sapato': '' if registro.numero_sapato is None else str(registro.numero_sapato),
+        'outra_ong': registro.cadastro_outra_ong or 'N',
+    }
+    return _tela_filho(request, 'gerencias/editar_filho.html', registro.id_responsavel, filho, registro=registro)
 
 
 @login_required
 @somente_post
 @tratar_erros
 def insere_novo_filho(request):
-    responsavel = get_object_or_404(TbCadastroResponsavel, id_responsavel=request.POST.get('responsavel'))
-    id_responsavel = responsavel.id_responsavel
-
-    cpf, erro = _ler_cpf(request, obrigatorio=False)
-    if erro:
-        messages.error(request, erro)
-        return redirect('novo_filho', id_responsavel=id_responsavel)
-    if _cpf_duplicado(TbFilhosResponsavel, cpf):
-        messages.error(request, 'Já existe uma criança cadastrada com este CPF.')
-        return redirect('lista_filhos', id_responsavel=id_responsavel)
-
-    novo = _criar_com_cpf_unico(
-        TbFilhosResponsavel,
-        id_responsavel_id=id_responsavel,
-        id_usuario_cad_id=request.user.id,
-        pnome=request.POST.get('pnome'),
-        snome=request.POST.get('snome'),
-        data_nascimento=_normalizar_data(request.POST.get('dt_nasc')),
-        cpf=cpf or None,
-        sexo=request.POST.get('sexo'),
-        numero_roupa=request.POST.get('roupa'),
-        numero_sapato=request.POST.get('sapato') or None,
-        cadastro_outra_ong=request.POST.get('outra_ong') or 'N',
-        data_cadastro=timezone.now(),
-        flag_ativo='S',
-    )
-    if novo is None:
-        messages.error(request, 'Já existe uma criança cadastrada com este CPF.')
-    return redirect('lista_filhos', id_responsavel=id_responsavel)
+    """Adiciona UMA criança a uma família já cadastrada (mesmas regras do cadastro de família)."""
+    responsavel = _buscar_por_id_ou_404(TbCadastroResponsavel, request.POST.get('responsavel'))
+    f = _filho_do_post(request, 0)
+    erros = _validar_filho(f)
+    if erros:
+        messages.error(request, 'Confira os campos destacados em vermelho.')
+        return _tela_filho(request, 'gerencias/novo_filho.html', responsavel, f, erros, status=400)
+    try:
+        with transaction.atomic():
+            novo = _criar_filho(request, responsavel, f, timezone.now())
+    except IntegrityError:
+        messages.error(request, 'Este CPF acabou de ser cadastrado por outra pessoa. Confira e tente de novo.')
+        return _tela_filho(request, 'gerencias/novo_filho.html', responsavel, f, status=400)
+    messages.success(request, f'{novo} foi cadastrado(a) na família de {responsavel}.')
+    return redirect('lista_filhos', id_responsavel=responsavel.pk)
 
 
 @login_required
@@ -1069,38 +1119,31 @@ def atualiza_filho(request, id_filho):
     filho = get_object_or_404(TbFilhosResponsavel, id_filho=id_filho)
     # O responsável vem do próprio registro, não do formulário (não dá para
     # "mudar" a criança de família alterando um campo escondido).
-    id_responsavel = filho.id_responsavel_id
-    filho.pnome = request.POST.get('pnome')
-    filho.snome = request.POST.get('snome')
+    responsavel = filho.id_responsavel
+    f = _filho_do_post(request, 0)
+    erros = _validar_filho(f, excluir_pk=filho.pk)
+    if erros:
+        messages.error(request, 'Confira os campos destacados em vermelho.')
+        return _tela_filho(request, 'gerencias/editar_filho.html', responsavel, f, erros, registro=filho, status=400)
 
-    dt_nasc = _normalizar_data(request.POST.get('dt_nasc'))
-    if dt_nasc:
-        filho.data_nascimento = dt_nasc
-
-    cpf, erro = _ler_cpf(request, obrigatorio=False, permitir_mascara=True)
-    if erro:
-        messages.error(request, erro)
-        return redirect('editar_filho', id_filho=filho.pk)
-    if cpf:  # None = manteve a máscara; '' = campo vazio -> mantém o atual
-        if _cpf_duplicado(TbFilhosResponsavel, cpf, excluir_pk=filho.pk):
-            messages.error(request, 'CPF já pertence a outra criança.')
-            return redirect('editar_filho', id_filho=filho.pk)
-        filho.cpf = cpf
-
-    filho.sexo = request.POST.get('sexo')
-    filho.numero_roupa = request.POST.get('roupa')
-    sapato = request.POST.get('sapato')
-    if sapato:
-        filho.numero_sapato = sapato
-    filho.cadastro_outra_ong = request.POST.get('outra_ong') or filho.cadastro_outra_ong
+    filho.pnome = f['pnome']
+    filho.snome = f['snome']
+    filho.data_nascimento = f['dt_nasc']
+    if f['cpf_limpo'] is not None:          # None = a máscara voltou como estava: mantém o CPF
+        filho.cpf = f['cpf_limpo'] or None
+    filho.sexo = f['sexo']
+    # Em branco = apagar (antes o número antigo voltava, não dava para deixar vazio).
+    filho.numero_roupa = f['roupa'] or None
+    filho.numero_sapato = int(f['sapato']) if f['sapato'] else None
+    filho.cadastro_outra_ong = 'S' if f['outra_ong'] == 'S' else 'N'
     filho.data_atualizacao = timezone.now()
     if not _salvar_com_cpf_unico(filho):
-        messages.error(request, 'CPF já pertence a outra criança.')
-        return redirect('editar_filho', id_filho=filho.pk)
+        messages.error(request, 'Este CPF acabou de ser cadastrado por outra pessoa. Confira e tente de novo.')
+        return _tela_filho(request, 'gerencias/editar_filho.html', responsavel, f, registro=filho, status=400)
 
     _registrar_auditoria(request, 'EDICAO_CRIANCA', f'/filho/edit/{id_filho}')
     messages.success(request, 'Dados da criança atualizados com sucesso.')
-    return redirect('lista_filhos', id_responsavel=id_responsavel)
+    return redirect('lista_filhos', id_responsavel=responsavel.pk)
 
 
 @login_required
@@ -1142,8 +1185,12 @@ def buscar_filhos(request):
 @tratar_erros
 def insere_novo_oficio(request):
     remetente = request.user.username
-    destinatario = request.POST.get('destinatario')
-    mensagem = f"Mensagem de {remetente} para {destinatario}: {request.POST.get('mensagem')}"
+    destinatario = (request.POST.get('destinatario') or '').strip()
+    texto = (request.POST.get('mensagem') or '').strip()
+    if not destinatario or not texto:
+        messages.error(request, 'Preencha o destinatário e a mensagem do ofício.')
+        return redirect('novo_oficio')
+    mensagem = f"Mensagem de {remetente} para {destinatario}: {texto}"
     TbOficios.objects.create(
         id_usuario_id=request.user.id,
         destinatario=destinatario,
@@ -1230,8 +1277,11 @@ def inserir_madrinha_padrinho(request):
     if flag_anonimo == 'S':
         pnome, snome = 'Anônimo', ''
     else:
-        pnome = request.POST.get('pnome')
-        snome = request.POST.get('snome')
+        pnome = (request.POST.get('pnome') or '').strip()
+        snome = (request.POST.get('snome') or '').strip()
+        if not pnome:
+            messages.error(request, 'Informe o nome do padrinho/madrinha (ou marque a opção de anônimo).')
+            return redirect('novo_madrinha_padrinho')
 
     novo = _criar_com_cpf_unico(
         TbMadrinhaPadrinho,
@@ -1299,6 +1349,9 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
         registro.cpf = cpf or None
 
     registro.flag_anonimo = _ler_flag_anonimo(request)
+    if registro.flag_anonimo != 'S' and not (request.POST.get('pnome') or '').strip():
+        messages.error(request, 'Informe o nome do padrinho/madrinha (ou marque a opção de anônimo).')
+        return redirect('editar_madrinha_padrinho', id_mad_pad=registro.pk)
     registro.pnome = request.POST.get('pnome', '').strip()
     registro.snome = request.POST.get('snome', '').strip()
     registro.endereco = request.POST.get('endereco', '').strip()
@@ -1349,8 +1402,8 @@ def apadrinhar_crianca(request, id_mad_pad):
 @somente_post
 @tratar_erros
 def vincular_mad_pad_crianca(request):
-    madrinha = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=request.POST.get('id_mad_pad'))
-    crianca = get_object_or_404(TbFilhosResponsavel, id_filho=request.POST.get('id_filho'))
+    madrinha = _buscar_por_id_ou_404(TbMadrinhaPadrinho, request.POST.get('id_mad_pad'))
+    crianca = _buscar_por_id_ou_404(TbFilhosResponsavel, request.POST.get('id_filho'))
     TbApadrinhamentoCrianca.objects.create(
         id_mad_pad_id=madrinha.id_mad_pad,
         id_filho_id=crianca.id_filho,
@@ -1457,6 +1510,18 @@ def listar_entregas(request):
     return render(request, 'gerencias/listar_entregas.html', {'lista': entregas})
 
 
+def _ler_entrega(request):
+    return (_buscar_por_id(TbEvento, request.POST.get('id_evento')),
+            _buscar_por_id(TbMadrinhaPadrinho, request.POST.get('id_mad_pad')),
+            _buscar_por_id(TbFilhosResponsavel, request.POST.get('id_crianca')))
+
+
+def _aviso_entrega_incompleta(evento, madrinha, crianca):
+    faltando = [nome for nome, obj in (('o evento', evento), ('o padrinho/madrinha', madrinha),
+                                       ('a criança', crianca)) if obj is None]
+    return 'Escolha ' + ', '.join(faltando) + ' para registrar a entrega.'
+
+
 def _contexto_entrega():
     return {
         'criancas': TbFilhosResponsavel.objects.filter(flag_ativo='S').order_by('pnome'),
@@ -1476,9 +1541,10 @@ def nova_entrega(request):
 @somente_post
 @tratar_erros
 def insere_nova_entrega(request):
-    evento = get_object_or_404(TbEvento, id_evento=request.POST.get('id_evento'))
-    madrinha = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=request.POST.get('id_mad_pad'))
-    crianca = get_object_or_404(TbFilhosResponsavel, id_filho=request.POST.get('id_crianca'))
+    evento, madrinha, crianca = _ler_entrega(request)
+    if not (evento and madrinha and crianca):
+        messages.error(request, _aviso_entrega_incompleta(evento, madrinha, crianca))
+        return redirect('nova_entrega')
     TbEntrega.objects.create(
         id_evento=evento.id_evento,
         id_mad_pad=madrinha.id_mad_pad,
@@ -1511,9 +1577,10 @@ def editar_entrega(request, id_entrega):
 @tratar_erros
 def atualiza_entrega(request, id_entrega):
     entrega = get_object_or_404(TbEntrega, id_entrega=id_entrega)
-    evento = get_object_or_404(TbEvento, id_evento=request.POST.get('id_evento'))
-    madrinha_padrinho = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=request.POST.get('id_mad_pad'))
-    crianca = get_object_or_404(TbFilhosResponsavel, id_filho=request.POST.get('id_crianca'))
+    evento, madrinha_padrinho, crianca = _ler_entrega(request)
+    if not (evento and madrinha_padrinho and crianca):
+        messages.error(request, _aviso_entrega_incompleta(evento, madrinha_padrinho, crianca))
+        return redirect('editar_entrega', id_entrega=id_entrega)
 
     entrega.id_evento = evento.id_evento
     entrega.id_mad_pad = madrinha_padrinho.id_mad_pad

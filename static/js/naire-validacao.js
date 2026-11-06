@@ -13,6 +13,11 @@
      NaireValidacao.ativar(form)          -> liga os avisos
      NaireValidacao.validarTudo(form)     -> true se tudo certo (senão foca o 1º erro)
 
+   O bases.html também chama NaireValidacao.ativarTodos(): toda tela com campos
+   obrigatórios ganha os avisos, mesmo as que não foram feitas pensando nisso
+   (o texto do aviso é criado a partir do nome do campo). Um formulário só é
+   ligado uma vez. Para não ligar num formulário: data-sem-avisos.
+
    Os avisos funcionam também em campos criados depois (ex.: o botão "+ 1 filho"):
    o formulário "escuta" os eventos e descobre de qual campo eles vieram.
 
@@ -32,13 +37,42 @@
         return true;
     }
 
+    // Nome do campo para o aviso padrão (texto do <label>, sem "*" e sem ícones).
+    function rotulo(campo) {
+        var label = (campo.id && document.querySelector('label[for="' + campo.id + '"]')) ||
+                    (campo.parentElement && campo.parentElement.querySelector('label')) ||
+                    (campo.closest('[class*="col"]') && campo.closest('[class*="col"]').querySelector('label'));
+        var texto = label ? label.textContent.replace(/[*:]/g, '').replace(/\s+/g, ' ').trim() : '';
+        return texto || (campo.placeholder || '').trim();
+    }
+
+    function mensagemObrigatorio(campo) {
+        if (campo.dataset.msgObrigatorio) return campo.dataset.msgObrigatorio;
+        var nome = rotulo(campo);
+        var verbo = campo.tagName === 'SELECT' ? 'Escolha' : 'Preencha';
+        return nome ? verbo + ': ' + nome + '.' : 'Campo obrigatório.';
+    }
+
+    // Lugar do aviso: o que a tela já tem, ou um criado logo depois do campo.
+    function elementoAviso(campo) {
+        var aviso = campo.parentElement.querySelector('.invalid-feedback');
+        if (!aviso) {
+            aviso = document.createElement('div');
+            aviso.className = 'invalid-feedback';
+            var grupo = campo.closest('.input-group');
+            if (grupo) { grupo.classList.add('has-validation'); grupo.appendChild(aviso); }
+            else campo.insertAdjacentElement('afterend', aviso);
+        }
+        return aviso;
+    }
+
     // Mensagem de erro do campo, ou '' se estiver certo.
     function erroDoCampo(campo) {
         var form = campo.form;
         var valor = campo.value.trim();
         // Erro apontado pelo servidor (ex.: CPF já cadastrado) vale até o valor mudar.
         if (campo.dataset.erroServidor && campo.value === campo.dataset.valorServidor) return campo.dataset.erroServidor;
-        if (campo.required && !valor) return campo.dataset.msgObrigatorio || 'Campo obrigatório.';
+        if (campo.required && !valor) return mensagemObrigatorio(campo);
         if (!valor && !campo.required) return '';
         switch (campo.dataset.validar) {
             case 'cpf':
@@ -58,12 +92,13 @@
             case 'senha2':
                 var senha = form.querySelector('[data-validar="senha"]');
                 return senha && campo.value === senha.value ? '' : 'As senhas não são iguais.';
-            case 'data':
+            case 'data':          // data de nascimento: não pode ser no futuro
+            case 'data-evento':   // data de evento: pode ser no futuro
                 var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor);
                 if (!m) return 'Use o formato dd/mm/aaaa.';
                 var d = new Date(+m[3], +m[2] - 1, +m[1]);
                 if (d.getDate() !== +m[1] || d.getMonth() !== +m[2] - 1) return 'Data inválida.';
-                if (d > new Date()) return 'A data não pode ser no futuro.';
+                if (campo.dataset.validar === 'data' && d > new Date()) return 'A data não pode ser no futuro.';
                 return '';
             case 'inteiro':
                 return /^\d{1,3}$/.test(valor) ? '' : 'Use só números (ex.: 28).';
@@ -73,8 +108,7 @@
 
     function mostrar(campo) {
         var erro = erroDoCampo(campo);
-        var aviso = campo.parentElement.querySelector('.invalid-feedback');
-        if (aviso && erro) aviso.textContent = erro;
+        if (erro) elementoAviso(campo).textContent = erro;
         campo.classList.toggle('is-invalid', !!erro);
         campo.classList.toggle('is-valid', !erro && campo.value.trim() !== '');
         return !erro;
@@ -112,6 +146,8 @@
     }
 
     function ativar(form) {
+        if (form._naireAtivo) return;   // cada formulário é ligado uma vez só
+        form._naireAtivo = true;
         marcarErrosDoServidor(form);
 
         // Clique num BOTÃO do formulário ("Enviar", "+ 1 filho"...): o campo perde o
@@ -180,5 +216,13 @@
         return !primeiroErro;
     }
 
-    window.NaireValidacao = { ativar: ativar, validarTudo: validarTudo, cpfValido: cpfValido };
+    // Liga os avisos em todo formulário da página que tenha campos obrigatórios.
+    function ativarTodos() {
+        document.querySelectorAll('form').forEach(function (form) {
+            if (form.hasAttribute('data-sem-avisos')) return;
+            if (form.querySelector('[required], [data-validar]')) ativar(form);
+        });
+    }
+
+    window.NaireValidacao = { ativar: ativar, ativarTodos: ativarTodos, validarTudo: validarTudo, cpfValido: cpfValido };
 })();
