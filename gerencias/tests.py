@@ -650,3 +650,48 @@ class MensagensTests(BaseLogado):
         }, follow=True)
         self.assertContains(resposta, 'CPF inválido')
         self.assertContains(resposta, 'alert-danger')
+
+
+class ApadrinhamentoAoDesativarCriancaTests(BaseLogado):
+    def setUp(self):
+        super().setUp()
+        from gerencias.models import TbApadrinhamentoCrianca
+        self.Apad = TbApadrinhamentoCrianca
+        self.resp = criar_responsavel()
+        self.filhos = [TbFilhosResponsavel.objects.create(id_responsavel=self.resp, pnome=n, flag_ativo='S') for n in ('A', 'B')]
+        outra = criar_responsavel(cpf=CPF_B)
+        self.de_outra_familia = TbFilhosResponsavel.objects.create(id_responsavel=outra, pnome='C', flag_ativo='S')
+        self.padrinho = TbMadrinhaPadrinho.objects.create(pnome='Pad', flag_ativo='S')
+        for f in self.filhos + [self.de_outra_familia]:
+            self.Apad.objects.create(id_mad_pad=self.padrinho, id_filho=f)
+
+    def test_familia_desativada_sai_dos_apadrinhamentos(self):
+        resposta = self.client.post(reverse('desativar_responsavel', args=[self.resp.pk]), follow=True)
+        self.assertEqual(list(self.Apad.objects.values_list('id_filho', flat=True)), [self.de_outra_familia.pk])
+        self.assertEqual(TbMadrinhaPadrinho.objects.get(pk=self.padrinho.pk).flag_ativo, 'S')  # padrinho continua
+        self.assertContains(resposta, '2 apadrinhamento(s) removido(s)')
+
+    def test_familia_desativada_pela_edicao_tambem(self):
+        self.client.post(reverse('atualiza_responsavel'), {
+            'id_responsavel': self.resp.pk, 'pnome': 'Maria', 'cpf': '***', 'bairro': 'B',
+            'cidade': 'C', 'estado': 'SP', 'ativo': 'N',
+        })
+        self.assertEqual(self.Apad.objects.count(), 1)
+
+    def test_crianca_desativada_sozinha_sai_do_apadrinhamento(self):
+        self.client.post(reverse('desativar_filho', args=[self.resp.pk]), {'id_filho': self.filhos[0].pk})
+        restantes = set(self.Apad.objects.values_list('id_filho', flat=True))
+        self.assertEqual(restantes, {self.filhos[1].pk, self.de_outra_familia.pk})
+
+    def test_reativar_nao_apaga_nada(self):
+        self.client.post(reverse('reativar_responsavel', args=[self.resp.pk]))
+        self.assertEqual(self.Apad.objects.count(), 3)
+
+
+class NovoPadrinhoTests(BaseLogado):
+    def test_formulario_vem_com_ativo_marcado(self):
+        import re
+        pagina = self.client.get(reverse('novo_madrinha_padrinho')).content.decode()
+        campo_ativo = re.search(r'<select name="flag_ativo".*?</select>', pagina, re.S).group(0)
+        self.assertRegex(campo_ativo, r'<option value="S" selected>')
+        self.assertNotIn('<option value="N" selected>', campo_ativo)

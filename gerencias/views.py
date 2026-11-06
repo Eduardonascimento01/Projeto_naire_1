@@ -209,12 +209,31 @@ def _definir_situacao_familia(responsavel, ativo):
     """
     Ativa ('S') ou desativa ('N') o responsável E todas as crianças da família.
     Uma família desativada não deve ter crianças "soltas" aparecendo nas listas.
-    Devolve quantas crianças foram atualizadas.
+    Ao desativar, as crianças também saem dos apadrinhamentos.
+    Devolve (crianças atualizadas, apadrinhamentos removidos).
     """
     responsavel.flag_ativo = ativo
     responsavel.save(update_fields=['flag_ativo'])
-    return TbFilhosResponsavel.objects.filter(id_responsavel=responsavel).update(
-        flag_ativo=ativo, data_atualizacao=timezone.now())
+    filhos = TbFilhosResponsavel.objects.filter(id_responsavel=responsavel)
+    removidos = _remover_apadrinhamentos_das_criancas(filhos) if ativo == 'N' else 0
+    criancas = filhos.update(flag_ativo=ativo, data_atualizacao=timezone.now())
+    return criancas, removidos
+
+
+def _remover_apadrinhamentos_das_criancas(criancas):
+    """
+    Tira os padrinhos das crianças informadas (desativadas). Os padrinhos
+    continuam cadastrados e podem apadrinhar outras crianças. O histórico de
+    entregas não é apagado. Devolve quantos apadrinhamentos foram removidos.
+    """
+    removidos, _ = TbApadrinhamentoCrianca.objects.filter(id_filho__in=criancas).delete()
+    return removidos
+
+
+def _aviso_apadrinhamentos(removidos):
+    if not removidos:
+        return ''
+    return f' {removidos} apadrinhamento(s) removido(s); os padrinhos ficam livres para outras crianças.'
 
 
 def _remover_apadrinhamentos(id_mad_pad):
@@ -483,7 +502,10 @@ def atualiza_responsavel(request):
         return redirect('edit_responsavel', id_responsavel=responsavel.pk)
     if responsavel.flag_ativo != ativo_antes:
         # Mudou a situação no formulário: as crianças acompanham o responsável.
-        _definir_situacao_familia(responsavel, responsavel.flag_ativo)
+        criancas, removidos = _definir_situacao_familia(responsavel, responsavel.flag_ativo)
+        situacao = 'desativada' if responsavel.flag_ativo == 'N' else 'reativada'
+        messages.success(request, f'Família de {responsavel} {situacao} ({criancas} criança(s) também).'
+                                  + _aviso_apadrinhamentos(removidos))
     return redirect('lista_responsavel')
 
 
@@ -503,8 +525,9 @@ def valida_responsavel(request, id_responsavel):
 def desativa_responsavel(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
     with transaction.atomic():
-        criancas = _definir_situacao_familia(responsavel, 'N')
-    messages.success(request, f'Família de {responsavel} desativada ({criancas} criança(s) também desativada(s)).')
+        criancas, removidos = _definir_situacao_familia(responsavel, 'N')
+    messages.success(request, f'Família de {responsavel} desativada ({criancas} criança(s) também desativada(s)).'
+                              + _aviso_apadrinhamentos(removidos))
     return redirect('lista_responsavel')
 
 
@@ -514,7 +537,7 @@ def desativa_responsavel(request, id_responsavel):
 def reativa_responsavel(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
     with transaction.atomic():
-        criancas = _definir_situacao_familia(responsavel, 'S')
+        criancas, _ = _definir_situacao_familia(responsavel, 'S')
     messages.success(request, f'Família de {responsavel} reativada ({criancas} criança(s) também reativada(s)).')
     return redirect('lista_responsavel')
 
@@ -551,8 +574,11 @@ def lista_filhos_total(request):
 @tratar_erros
 def desativar_filho(request, id_responsavel):
     filho = get_object_or_404(TbFilhosResponsavel, id_filho=request.POST.get('id_filho'))
-    filho.flag_ativo = 'N'
-    filho.save(update_fields=['flag_ativo'])
+    with transaction.atomic():
+        filho.flag_ativo = 'N'
+        filho.save(update_fields=['flag_ativo'])
+        removidos = _remover_apadrinhamentos_das_criancas([filho])
+    messages.success(request, f'{filho} foi desativado(a).' + _aviso_apadrinhamentos(removidos))
     return redirect('lista_filhos', id_responsavel=id_responsavel)
 
 
@@ -1228,6 +1254,7 @@ def anonimizar_responsavel(request, id_responsavel):
             filho.save()
 
         if filhos:
+            _remover_apadrinhamentos_das_criancas(filhos)
             # id_crianca é um IntegerField: precisa receber os NÚMEROS dos ids,
             # não os objetos (que causavam TypeError e erro 500).
             TbEntrega.objects.filter(id_crianca__in=[f.id_filho for f in filhos]).update(
