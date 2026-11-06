@@ -4,7 +4,10 @@ from datetime import datetime, date
 from functools import wraps
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError, transaction
 from django.db.models import Q
@@ -19,8 +22,10 @@ from gerencias.models import (
     TbFuncionario, TbTipoFuncionario, TbCadastroResponsavel,
     TbFilhosResponsavel, TbOficios, TbMadrinhaPadrinho,
     TbApadrinhamentoCrianca, TbEvento, TbEntrega, TbLogAuditoria,
+    TbFuncionarioUsuario,
 )
 
+User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
@@ -268,6 +273,76 @@ def pagina_erro(request, mensagem="Ocorreu um erro interno no processamento.", s
 # ==========================================
 # BLOCO FUNCIONÁRIOS
 # ==========================================
+# Cada funcionário cadastrado ganha um login (auth_user), ligado a ele pela
+# tabela tb_funcionario_usuario. Regras:
+#  - tipo ADMIN  -> superusuário (acesso total, inclusive LGPD e /admin/);
+#    os outros tipos -> acesso normal ao sistema;
+#  - só um administrador (superusuário) cria, edita, desativa ou anonimiza
+#    um funcionário ADMIN (senão um membro poderia se promover ou rebaixar
+#    um administrador);
+#  - funcionário desativado não consegue fazer login.
+FORMATO_USUARIO = re.compile(r'^[\w.@+-]{3,150}$')
+CAMPOS_OBRIGATORIOS_FUNCIONARIO = {
+    'tp_funcionario': 'Escolha o tipo de funcionário.',
+    'pnome': 'Informe o primeiro nome.',
+    'snome': 'Informe o sobrenome.',
+    'rua': 'Informe o logradouro.',
+    'numero': 'Informe o número.',
+    'bairro': 'Informe o bairro.',
+    'cidade': 'Informe a cidade.',
+    'estado': 'Escolha o estado.',
+    'usuario': 'Escolha um nome de usuário para o login.',
+    'senha': 'Crie uma senha.',
+    'senha2': 'Repita a senha.',
+}
+
+
+def _tipo_e_admin(tipo):
+    """O administrador é reconhecido pelo NOME do tipo ("ADMIN"), não pelo número:
+    um banco com outra numeração não transforma ninguém em administrador sem querer."""
+    return tipo is not None and (tipo.descricao or '').strip().upper().startswith('ADMIN')
+
+
+def _funcionario_e_admin(funcionario):
+    return _tipo_e_admin(funcionario.id_tipo)
+
+
+def _bloquear_se_admin(request, funcionario):
+    """Devolve uma resposta de bloqueio se quem pede não pode mexer neste funcionário."""
+    if _funcionario_e_admin(funcionario) and not request.user.is_superuser:
+        logger.warning("%s tentou alterar o administrador %s", request.user.username, funcionario.pk)
+        messages.error(request, 'Somente um administrador pode alterar o cadastro de outro administrador.')
+        return redirect('lista_funcionarios')
+    return None
+
+
+def _usuario_do_funcionario(funcionario):
+    acesso = TbFuncionarioUsuario.objects.select_related('usuario').filter(funcionario=funcionario).first()
+    return acesso.usuario if acesso else None
+
+
+def _sincronizar_login(funcionario):
+    """Mantém o login coerente com o cadastro: ativo, administrador e nome."""
+    usuario = _usuario_do_funcionario(funcionario)
+    if usuario is None:
+        return
+    usuario.is_active = funcionario.flag_ativo == 'S'
+    usuario.is_superuser = _funcionario_e_admin(funcionario)
+    usuario.is_staff = True
+    usuario.first_name = (funcionario.pnome or '')[:150]
+    usuario.last_name = (funcionario.snome or '')[:150]
+    usuario.save(update_fields=['is_active', 'is_superuser', 'is_staff', 'first_name', 'last_name'])
+
+
+def _contexto_form_funcionario(request, dados=None, erros=None):
+    return {
+        'tipos': TbTipoFuncionario.objects.order_by('id_tipo'),
+        'pode_criar_admin': request.user.is_superuser,
+        'form': dados or {},
+        'erros': erros or {},
+    }
+
+
 @login_required
 @tratar_erros
 def lista_funcionarios(request):
@@ -278,42 +353,105 @@ def lista_funcionarios(request):
 @login_required
 @tratar_erros
 def novo_funcionario(request):
-    return render(request, 'gerencias/novo_funcionario.html')
+    return render(request, 'gerencias/novo_funcionario.html', _contexto_form_funcionario(request))
+
+
+@login_required
+@tratar_erros
+def usuario_disponivel(request):
+    """Usado pelo formulário para avisar, enquanto a pessoa digita, se o login já existe."""
+    usuario = (request.GET.get('usuario') or '').strip()
+    valido = bool(FORMATO_USUARIO.match(usuario))
+    disponivel = valido and not User.objects.filter(username__iexact=usuario).exists()
+    return JsonResponse({'valido': valido, 'disponivel': disponivel})
+
+
+def _validar_novo_funcionario(request):
+    """Confere tudo o que veio do formulário. Devolve (dados, tipo, cpf, erros por campo)."""
+    dados = {k: (v or '').strip() for k, v in request.POST.items()
+             if k not in ('csrfmiddlewaretoken', 'senha', 'senha2')}
+    erros = {campo: msg for campo, msg in CAMPOS_OBRIGATORIOS_FUNCIONARIO.items()
+             if not (request.POST.get(campo) or '').strip()}
+
+    tipo = None
+    if 'tp_funcionario' not in erros:
+        tipo = TbTipoFuncionario.objects.filter(pk=dados['tp_funcionario']).first()
+        if tipo is None:
+            erros['tp_funcionario'] = 'Tipo de funcionário inválido.'
+        elif _tipo_e_admin(tipo) and not request.user.is_superuser:
+            logger.warning("%s tentou cadastrar um administrador", request.user.username)
+            erros['tp_funcionario'] = 'Somente um administrador pode cadastrar outro administrador.'
+
+    cpf, erro_cpf = _ler_cpf(request, obrigatorio=True)
+    if erro_cpf:
+        erros['cpf'] = erro_cpf
+    elif _cpf_duplicado(TbFuncionario, cpf):
+        erros['cpf'] = 'Já existe um funcionário cadastrado com este CPF.'
+
+    if len(somente_digitos(dados.get('telefone'))) not in (10, 11):
+        erros['telefone'] = 'Informe o telefone com DDD (10 ou 11 dígitos).'
+
+    usuario = dados.get('usuario', '')
+    if usuario and not FORMATO_USUARIO.match(usuario):
+        erros['usuario'] = 'Use de 3 a 150 caracteres: letras, números e . @ + - _ (sem espaços).'
+    elif usuario and User.objects.filter(username__iexact=usuario).exists():
+        erros['usuario'] = 'Este nome de usuário já está em uso. Escolha outro.'
+
+    senha, senha2 = request.POST.get('senha') or '', request.POST.get('senha2') or ''
+    if senha and senha2 and senha != senha2:
+        erros['senha2'] = 'As senhas não são iguais.'
+    if senha and 'senha' not in erros:
+        try:
+            # As mesmas regras do Django (mínimo de 8 caracteres, não só números,
+            # não muito comum, não parecida com o nome do usuário).
+            validate_password(senha, user=User(username=usuario, first_name=dados.get('pnome', ''),
+                                                last_name=dados.get('snome', '')))
+        except ValidationError as e:
+            erros['senha'] = ' '.join(e.messages)
+    return dados, tipo, cpf, erros
 
 
 @login_required
 @somente_post
 @tratar_erros
 def insere_novo_funcionario(request):
-    cpf, erro = _ler_cpf(request, obrigatorio=True)
-    if erro:
-        messages.error(request, erro)
-        return redirect('novo_funcionario')
-    if _cpf_duplicado(TbFuncionario, cpf):
-        messages.error(request, 'Já existe um funcionário cadastrado com este CPF.')
-        return redirect('novo_funcionario')
+    dados, tipo, cpf, erros = _validar_novo_funcionario(request)
+    if erros:
+        messages.error(request, 'Confira os campos destacados em vermelho.')
+        return render(request, 'gerencias/novo_funcionario.html',
+                      _contexto_form_funcionario(request, dados, erros), status=400)
 
-    rua_n = f"{request.POST.get('rua') or ''}, {request.POST.get('numero') or ''}"
-    telefone = somente_digitos(request.POST.get('telefone'))
+    ativo = (dados.get('flag') or 'S') == 'S'
+    try:
+        with transaction.atomic():
+            # Cadastro + login juntos: se um falhar, nenhum dos dois é gravado.
+            funcionario = TbFuncionario.objects.create(
+                id_tipo=tipo,
+                pnome=dados['pnome'],
+                snome=dados['snome'],
+                cpf=cpf,
+                telefone=somente_digitos(dados.get('telefone')),
+                endereco=f"{dados['rua']}, {dados['numero']}",
+                complemento=dados.get('comp'),
+                bairro=dados['bairro'],
+                cidade=dados['cidade'],
+                estado=dados['estado'],
+                flag_ativo='S' if ativo else 'N',
+            )
+            usuario = User.objects.create_user(
+                username=dados['usuario'], password=request.POST['senha'],
+                first_name=dados['pnome'][:150], last_name=dados['snome'][:150],
+                is_staff=True, is_superuser=_tipo_e_admin(tipo), is_active=ativo,
+            )
+            TbFuncionarioUsuario.objects.create(funcionario=funcionario, usuario=usuario)
+    except IntegrityError:
+        # Dois cadastros ao mesmo tempo com o mesmo CPF ou usuário.
+        messages.error(request, 'Este CPF ou nome de usuário acabou de ser cadastrado por outra pessoa.')
+        return render(request, 'gerencias/novo_funcionario.html',
+                      _contexto_form_funcionario(request, dados, {}), status=400)
 
-    novo = _criar_com_cpf_unico(
-        TbFuncionario,
-        id_tipo_id=request.POST.get('tp_funcionario'),
-        pnome=request.POST.get('pnome'),
-        snome=request.POST.get('snome'),
-        cpf=cpf,
-        telefone=telefone,
-        endereco=rua_n,
-        complemento=request.POST.get('comp'),
-        bairro=request.POST.get('bairro'),
-        cidade=request.POST.get('cidade'),
-        estado=request.POST.get('estado'),
-        flag_ativo=request.POST.get('flag') or 'S',
-    )
-    if novo is None:
-        messages.error(request, 'Já existe um funcionário cadastrado com este CPF.')
-        return redirect('novo_funcionario')
-    messages.success(request, "Funcionário cadastrado com sucesso!")
+    _registrar_auditoria(request, 'CADASTRO_FUNCIONARIO', f'/func/{funcionario.pk}')
+    messages.success(request, f'Funcionário {funcionario} cadastrado. Login: {usuario.username}')
     return redirect('lista_funcionarios')
 
 
@@ -322,8 +460,12 @@ def insere_novo_funcionario(request):
 @tratar_erros
 def desativa_funcionario(request, id_funcionario):
     func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_admin(request, func)
+    if bloqueio:
+        return bloqueio
     func.flag_ativo = 'N'
     func.save(update_fields=['flag_ativo'])
+    _sincronizar_login(func)  # funcionário desativado não entra mais no sistema
     messages.success(request, f'{func} foi desativado(a). Para reativar, use o menu Funcionários > Desativados.')
     return redirect('lista_funcionarios')
 
@@ -333,8 +475,12 @@ def desativa_funcionario(request, id_funcionario):
 @tratar_erros
 def reativa_funcionario(request, id_funcionario):
     func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_admin(request, func)
+    if bloqueio:
+        return bloqueio
     func.flag_ativo = 'S'
     func.save(update_fields=['flag_ativo'])
+    _sincronizar_login(func)
     messages.success(request, f'{func} foi reativado(a).')
     return redirect('lista_funcionarios')
 
@@ -351,7 +497,15 @@ def lista_funcionarios_desativos(request):
 @tratar_erros
 def atualiza_funcionario(request):
     funcionario = get_object_or_404(TbFuncionario, id_funcionario=request.POST.get('id_funcionario'))
-    funcionario.id_tipo = get_object_or_404(TbTipoFuncionario, id_tipo=request.POST.get('id_tipo'))
+    bloqueio = _bloquear_se_admin(request, funcionario)
+    if bloqueio:
+        return bloqueio
+    novo_tipo = get_object_or_404(TbTipoFuncionario, id_tipo=request.POST.get('id_tipo'))
+    if _tipo_e_admin(novo_tipo) and not request.user.is_superuser:
+        logger.warning("%s tentou promover %s a administrador", request.user.username, funcionario.pk)
+        messages.error(request, 'Somente um administrador pode tornar alguém administrador.')
+        return redirect('editar_funcionario', id_funcionario=funcionario.pk)
+    funcionario.id_tipo = novo_tipo
     funcionario.pnome = request.POST.get('pnome')
     funcionario.snome = request.POST.get('snome')
 
@@ -375,14 +529,23 @@ def atualiza_funcionario(request):
     if not _salvar_com_cpf_unico(funcionario):
         messages.error(request, 'CPF já pertence a outro funcionário.')
         return redirect('editar_funcionario', id_funcionario=funcionario.pk)
+    _sincronizar_login(funcionario)
+    messages.success(request, f'Cadastro de {funcionario} atualizado.')
     return redirect('lista_funcionarios')
 
 
 @login_required
 @tratar_erros
 def editar_funcionario(request, id_funcionario):
-    dados = [get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)]
-    return render(request, 'gerencias/editar_funcionario.html', {'dados': dados})
+    funcionario = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_admin(request, funcionario)
+    if bloqueio:
+        return bloqueio
+    return render(request, 'gerencias/editar_funcionario.html', {
+        'dados': [funcionario],
+        'pode_criar_admin': request.user.is_superuser,
+        'login': _usuario_do_funcionario(funcionario),
+    })
 
 
 # ==========================================
@@ -1191,14 +1354,25 @@ def exportar_dados_funcionario(request, id_funcionario):
 @somente_post
 @tratar_erros
 def anonimizar_funcionario(request, id_funcionario):
+    func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_admin(request, func)
+    if bloqueio:
+        return bloqueio
     with transaction.atomic():
-        func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
         func.pnome, func.snome = "Funcionário", "Anonimizado (LGPD)"
         func.cpf = f"{PREFIXO_ANONIMO}{func.pk}"
         func.telefone = "Removido"
         _anonimizar_endereco(func)
         func.flag_ativo = 'N'
         func.save()
+        usuario = _usuario_do_funcionario(func)
+        if usuario is not None:
+            # O login também perde os dados pessoais e deixa de funcionar.
+            usuario.username = f'anonimizado-{func.pk}'
+            usuario.first_name = usuario.last_name = usuario.email = ''
+            usuario.is_active = False
+            usuario.set_unusable_password()
+            usuario.save()
         _registrar_auditoria(request, 'ANONIMIZACAO_FUNC', f'/func/{id_funcionario}')
     messages.success(request, 'Dados do funcionário anonimizados.')
     return redirect('lista_funcionarios')

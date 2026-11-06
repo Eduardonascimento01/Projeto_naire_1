@@ -56,8 +56,8 @@
                                         <i class="bi bi-person-vcard"></i> Tipo de Funcionário
                                     </label>
                                     <select name="id_tipo" class="form-select shadow-sm">
-                                        <option value="1" {% if item.id_tipo_id == 1 %}selected{% endif %}>
-                                            👑 ADMIN
+                                        <option value="1" {% if item.id_tipo_id == 1 %}selected{% endif %} {% if not pode_criar_admin %}disabled{% endif %}>
+                                            👑 ADMIN{% if not pode_criar_admin %} (só um administrador pode escolher){% endif %}
                                         </option>
                                         <option value="2" {% if item.id_tipo_id == 2 %}selected{% endif %}>
                                             👥 MEMBRO
@@ -69,6 +69,10 @@
                                             🤝 VOLUNTÁRIO
                                         </option>
                                     </select>
+                                    <small class="text-muted d-block mt-1">
+                                        <i class="bi bi-key"></i>
+                                        {% if login %}Login no sistema: <strong>{{ login.username }}</strong>{% else %}Sem login no sistema (cadastrado antes do acesso por senha).{% endif %}
+                                    </small>
                                 </div>
 
                                 <!-- Status Ativo -->

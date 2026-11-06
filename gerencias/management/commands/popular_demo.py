@@ -36,6 +36,9 @@ CRIANCAS = ['Lucas', 'Sofia', 'Miguel', 'Alice', 'Arthur', 'Helena', 'Davi', 'La
             'Gael', 'Valentina', 'Theo', 'Cecília']
 BAIRROS = ['Jundiapeba', 'Centro', 'Vila Suíça', 'Braz Cubas']
 AVISO = 'DADOS FICTÍCIOS - DEMONSTRAÇÃO'
+# Os mesmos tipos (e números) do banco real da ONG. O formulário de
+# funcionário e a regra "só administrador cria administrador" usam esses números.
+TIPOS_FUNCIONARIO = [(1, 'ADMIN'), (2, 'MEMBRO'), (3, 'CONTRATADO'), (4, 'VOLUNTARIO')]
 
 
 def gerar_cpf(rng):
@@ -66,6 +69,8 @@ class Command(BaseCommand):
         if connection.vendor != 'sqlite':
             raise CommandError('Este comando só funciona com DB_ENGINE=sqlite.')
 
+        self._garantir_tipos()
+
         if TbCadastroResponsavel.objects.exists():
             self.stdout.write('O banco já tem cadastros: dados fictícios não foram recriados.')
         else:
@@ -76,13 +81,32 @@ class Command(BaseCommand):
             self._criar_usuarios(usuarios, lgpd)
 
     # ------------------------------------------------------------------
+    def _garantir_tipos(self):
+        """Deixa os tipos de funcionário iguais aos do banco real (roda sempre)."""
+        antigo_1 = TbTipoFuncionario.objects.filter(pk=1).values_list('descricao', flat=True).first()
+        for pk, descricao in TIPOS_FUNCIONARIO:
+            # Um tipo antigo com o mesmo nome em outro número seria um conflito (nome único).
+            for antigo in TbTipoFuncionario.objects.filter(descricao=descricao).exclude(pk=pk):
+                antigo.descricao = f'{descricao} (antigo {antigo.pk})'
+                antigo.save()
+            TbTipoFuncionario.objects.update_or_create(pk=pk, defaults={'descricao': descricao})
+
+        # Bancos de demonstração antigos usavam o número 1 para "Coordenação".
+        # Agora o 1 é ADMIN: quem era desse tipo vira MEMBRO, para ninguém se
+        # tornar administrador só por causa da troca de nome.
+        if antigo_1 and not antigo_1.upper().startswith('ADMIN'):
+            mudados = TbFuncionario.objects.filter(id_tipo_id=1).update(id_tipo_id=2)
+            if mudados:
+                self.stdout.write(f'Tipos de funcionário atualizados: {mudados} funcionário(s) '
+                                  f'de "{antigo_1}" passaram para MEMBRO.')
+
     def _criar_dados(self):
         rng = random.Random(2026)  # mesma semente = mesmos dados sempre
         agora = timezone.now()
         hoje = date.today()
 
-        tipos = [TbTipoFuncionario.objects.get_or_create(descricao=d)[0]
-                 for d in ('Coordenação', 'Voluntário', 'Assistente Social')]
+        # Funcionários de exemplo: membros, contratados e voluntários (nenhum administrador).
+        tipos = list(TbTipoFuncionario.objects.filter(pk__in=[2, 3, 4]).order_by('pk'))
 
         for i in range(4):
             TbFuncionario.objects.create(

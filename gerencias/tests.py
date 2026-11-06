@@ -695,3 +695,145 @@ class NovoPadrinhoTests(BaseLogado):
         campo_ativo = re.search(r'<select name="flag_ativo".*?</select>', pagina, re.S).group(0)
         self.assertRegex(campo_ativo, r'<option value="S" selected>')
         self.assertNotIn('<option value="N" selected>', campo_ativo)
+
+
+# ----------------------------------------------------------------------
+# Cadastro de funcionário com login e regra do administrador
+# ----------------------------------------------------------------------
+class FuncionarioComLoginTests(TestCase):
+    SENHA = 'Girassol-Azul-2026'
+
+    def setUp(self):
+        from gerencias.models import TbFuncionarioUsuario
+        self.Link = TbFuncionarioUsuario
+        self.tipos = {d: TbTipoFuncionario.objects.create(pk=pk, descricao=d)
+                      for pk, d in [(1, 'ADMIN'), (2, 'MEMBRO'), (3, 'CONTRATADO'), (4, 'VOLUNTARIO')]}
+        self.admin = User.objects.create_user('chefe', password='x', is_staff=True, is_superuser=True)
+        self.membro = User.objects.create_user('membro', password='x', is_staff=True)
+
+    def dados(self, **extra):
+        d = {'tp_funcionario': self.tipos['MEMBRO'].pk, 'flag': 'S', 'pnome': 'Ana', 'snome': 'Souza',
+             'cpf': '529.982.247-25', 'telefone': '(11) 98765-4321', 'rua': 'Rua A', 'numero': '10',
+             'comp': '', 'bairro': 'Centro', 'cidade': 'Mogi', 'estado': 'SP',
+             'usuario': 'ana.souza', 'senha': self.SENHA, 'senha2': self.SENHA}
+        d.update(extra)
+        return d
+
+    def entra(self, usuario, senha):
+        """Login pela tela de login de verdade (passa pelo django-axes). True se entrou."""
+        self.client.logout()
+        resposta = self.client.post(reverse('login'), {'username': usuario, 'password': senha})
+        return resposta.status_code == 302
+
+    def cadastrar(self, quem, **extra):
+        self.client.force_login(quem)
+        return self.client.post(reverse('insere_novo_funcionario'), self.dados(**extra), follow=True)
+
+    def test_membro_cadastrado_ganha_login_normal(self):
+        resposta = self.cadastrar(self.membro)
+        self.assertContains(resposta, 'Login: ana.souza')
+        novo = User.objects.get(username='ana.souza')
+        self.assertTrue(novo.is_staff and novo.is_active)
+        self.assertFalse(novo.is_superuser)
+        self.assertTrue(self.Link.objects.filter(usuario=novo, funcionario__pnome='Ana').exists())
+        self.assertTrue(self.entra('ana.souza', self.SENHA))
+
+    def test_so_administrador_cadastra_administrador(self):
+        resposta = self.cadastrar(self.membro, tp_funcionario=self.tipos['ADMIN'].pk)
+        self.assertEqual(resposta.status_code, 400)
+        self.assertContains(resposta, 'Somente um administrador pode cadastrar outro administrador', status_code=400)
+        self.assertFalse(User.objects.filter(username='ana.souza').exists())
+        self.assertFalse(TbFuncionario.objects.exists())
+
+        self.cadastrar(self.admin, tp_funcionario=self.tipos['ADMIN'].pk)
+        self.assertTrue(User.objects.get(username='ana.souza').is_superuser)
+
+    def test_opcao_administrador_bloqueada_no_formulario_para_membro(self):
+        self.client.force_login(self.membro)
+        pagina = self.client.get(reverse('novo_funcionario')).content.decode()
+        self.assertRegex(pagina, r'<option value="1"\s+disabled>')
+        self.client.force_login(self.admin)
+        pagina = self.client.get(reverse('novo_funcionario')).content.decode()
+        self.assertNotRegex(pagina, r'<option value="1"\s+disabled>')
+
+    def test_erros_devolvem_o_formulario_preenchido_sem_a_senha(self):
+        resposta = self.cadastrar(self.membro, senha2='OutraSenha-99', telefone='123')
+        self.assertEqual(resposta.status_code, 400)
+        html = resposta.content.decode()
+        self.assertIn('As senhas não são iguais', html)
+        self.assertIn('Informe o telefone com DDD', html)
+        self.assertIn('value="Ana"', html)            # dados voltam preenchidos
+        self.assertNotIn(self.SENHA, html)            # a senha nunca volta na página
+        self.assertFalse(TbFuncionario.objects.exists())
+
+    def test_senha_fraca_e_usuario_repetido_sao_recusados(self):
+        resposta = self.cadastrar(self.membro, senha='12345678', senha2='12345678')
+        self.assertContains(resposta, 'senha', status_code=400)
+        resposta = self.cadastrar(self.membro, usuario='MEMBRO')   # já existe (sem diferenciar maiúsculas)
+        self.assertContains(resposta, 'já está em uso', status_code=400)
+        self.assertFalse(TbFuncionario.objects.exists())
+
+    def test_desativar_funcionario_bloqueia_o_login(self):
+        self.cadastrar(self.membro)
+        func = TbFuncionario.objects.get()
+        self.client.post(reverse('desativa_funcionario', args=[func.pk]))
+        self.assertFalse(User.objects.get(username='ana.souza').is_active)
+        self.assertFalse(self.entra('ana.souza', self.SENHA))
+        self.client.force_login(self.membro)
+        self.client.post(reverse('reativa_funcionario', args=[func.pk]))
+        self.assertTrue(User.objects.get(username='ana.souza').is_active)
+
+    def test_membro_nao_mexe_em_administrador(self):
+        self.cadastrar(self.admin, tp_funcionario=self.tipos['ADMIN'].pk)
+        func = TbFuncionario.objects.get()
+        self.client.force_login(self.membro)
+        self.client.get(reverse('editar_funcionario', args=[func.pk]))
+        self.client.post(reverse('desativa_funcionario', args=[func.pk]))
+        self.client.post(reverse('atualiza_funcionario'), {
+            'id_funcionario': func.pk, 'id_tipo': self.tipos['VOLUNTARIO'].pk, 'pnome': 'X', 'snome': 'Y',
+            'cpf': '***', 'telefone': '11987654321', 'endereco': 'R', 'bairro': 'B', 'cidade': 'C',
+            'estado': 'SP', 'flag_ativo': 'S'})
+        func.refresh_from_db()
+        self.assertEqual((func.flag_ativo, func.pnome, func.id_tipo_id), ('S', 'Ana', self.tipos['ADMIN'].pk))
+        self.assertTrue(User.objects.get(username='ana.souza').is_superuser)
+
+    def test_membro_nao_se_promove_a_administrador(self):
+        self.cadastrar(self.membro)
+        func = TbFuncionario.objects.get()
+        self.client.post(reverse('atualiza_funcionario'), {
+            'id_funcionario': func.pk, 'id_tipo': self.tipos['ADMIN'].pk, 'pnome': 'Ana', 'snome': 'Souza',
+            'cpf': '***', 'telefone': '11987654321', 'endereco': 'R', 'bairro': 'B', 'cidade': 'C',
+            'estado': 'SP', 'flag_ativo': 'S'})
+        func.refresh_from_db()
+        self.assertEqual(func.id_tipo_id, self.tipos['MEMBRO'].pk)
+        self.assertFalse(User.objects.get(username='ana.souza').is_superuser)
+
+    def test_verificacao_de_usuario_disponivel(self):
+        self.client.force_login(self.membro)
+        url = reverse('usuario_disponivel')
+        self.assertEqual(self.client.get(url, {'usuario': 'Chefe'}).json(), {'valido': True, 'disponivel': False})
+        self.assertEqual(self.client.get(url, {'usuario': 'nova.pessoa'}).json(), {'valido': True, 'disponivel': True})
+        self.assertFalse(self.client.get(url, {'usuario': 'com espaço'}).json()['valido'])
+
+    def test_anonimizar_funcionario_apaga_e_bloqueia_o_login(self):
+        self.cadastrar(self.membro)
+        func = TbFuncionario.objects.get()
+        self.client.force_login(self.admin)
+        self.client.post(reverse('anonimizar_funcionario', args=[func.pk]))
+        login = self.Link.objects.get(funcionario=func).usuario
+        self.assertEqual(login.username, f'anonimizado-{func.pk}')
+        self.assertFalse(login.is_active or login.has_usable_password())
+        self.assertEqual(login.first_name, '')
+
+    def test_popular_demo_deixa_os_tipos_iguais_aos_do_banco_real(self):
+        from io import StringIO
+        from django.core.management import call_command
+        # Banco de demonstração antigo: o tipo 1 era "Coordenação" e tinha funcionários.
+        TbTipoFuncionario.objects.filter(pk=1).update(descricao='Coordenação')
+        func = TbFuncionario.objects.create(id_tipo_id=1, pnome='F', snome='G', cpf=CPF_A,
+                                            endereco='R', bairro='B', cidade='C', estado='SP')
+        call_command('popular_demo', stdout=StringIO())
+        self.assertEqual(list(TbTipoFuncionario.objects.order_by('pk').values_list('descricao', flat=True)),
+                         ['ADMIN', 'MEMBRO', 'CONTRATADO', 'VOLUNTARIO'])
+        func.refresh_from_db()
+        self.assertEqual(func.id_tipo_id, 2)   # não virou administrador
