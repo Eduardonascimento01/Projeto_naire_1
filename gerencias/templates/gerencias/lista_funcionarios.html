@@ -66,34 +66,20 @@
                 <thead class="table-dark">
                     <tr>
                         <th scope="col" class="px-4">ID</th>
-                        <th scope="col">📊 TIP FUNC.</th>
                         <th scope="col">👤 NOME COMPLETO</th>
                         <th scope="col">🆔 CPF</th>
                         <th scope="col">📞 TELEFONE</th>
                         <th scope="col">📍 ENDEREÇO</th>
                         <th scope="col">🏙️ CIDADE/UF</th>
                         <th scope="col">✅ STATUS</th>
-                        <th scope="col" class="text-center">⚙️ AÇÕES</th>
+                        <th scope="col" class="text-center">⚙️ AÇÕES{% include 'gerencias/_botao_modo_lgpd.html' %}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for funcionario in lista %}
-                    <tr class="funcionario-row {% if not funcionario.flag_ativo %}table-secondary opacity-75{% endif %}" 
-                        data-status="{% if funcionario.flag_ativo %}ativo{% else %}inativo{% endif %}">
+                    <tr class="funcionario-row {% if funcionario.flag_ativo != 'S' %}table-secondary opacity-75{% endif %}" 
+                        data-status="{% if funcionario.flag_ativo == 'S' %}ativo{% else %}inativo{% endif %}">
                         <td class="px-4 fw-bold">#{{ funcionario.id_funcionario }}</td>
-                        <td>
-                            <small>
-                            {% if funcionario.id_tipo == 1 %}
-                                👑 A
-                            {% elif funcionario.id_tipo == 2 %}
-                                👥 M
-                            {% elif funcionario.id_tipo == 3 %}
-                                💼 F
-                            {% else %}
-                                🤝 V
-                            {% endif %}
-                            </small>
-                        </td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar-circle me-2">
@@ -133,11 +119,18 @@
                         </td>
                         <td>
                             <div class="form-check form-switch">
-                                <input class="form-check-input status-toggle" type="checkbox" 
-                                       {% if funcionario.flag_ativo %}checked{% endif %}
-                                       data-id_1="{{ funcionario.id_funcionario }}">
-                                <label class="form-check-label">
-                                    <span class="text-success" selected>Ativo</span>
+                                <!-- Desligar o interruptor desativa de verdade (usa o mesmo
+                                     formulário e a mesma confirmação do botão "Desativar"). -->
+                                <input class="form-check-input status-toggle" type="checkbox" role="switch"
+                                       id="status-{{ funcionario.id_funcionario }}"
+                                       {% if funcionario.flag_ativo == 'S' %}checked{% endif %}
+                                       title="Desligue para desativar o funcionário">
+                                <label class="form-check-label" for="status-{{ funcionario.id_funcionario }}">
+                                    {% if funcionario.flag_ativo == 'S' %}
+                                        <span class="text-success">Ativo</span>
+                                    {% else %}
+                                        <span class="text-muted">Inativo</span>
+                                    {% endif %}
                                 </label>
                             </div>
                         </td>
@@ -173,7 +166,8 @@
                                 </form>
 
                                 <!-- BOTÕES LGPD - VISÍVEIS APENAS PARA A DIRETORIA -->
-                                {% if request.user.is_superuser %}
+                                {% if pode_lgpd %}
+                                <span class="acoes-lgpd">
                                     <a href="{% url 'exportar_dados_funcionario' funcionario.id_funcionario %}" class="btn btn-info btn-sm text-white" data-bs-toggle="tooltip" title="Exportar Dados LGPD">
                                         <i class="bi bi-download"></i> LGPD
                                     </a>
@@ -183,13 +177,14 @@
                                             <i class="bi bi-incognito"></i> Anonimizar
                                         </button>
                                     </form>
+                                </span>
                                 {% endif %}
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <i class="bi bi-inbox display-1 text-muted"></i>
                             <p class="mt-3 text-muted">Nenhum funcionário cadastrado ainda.</p>
                             <form action="{% url 'novo_funcionario' %}" method="POST" style="display: inline-block;">
@@ -455,23 +450,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Toggle de status visual
-    const statusToggles = document.querySelectorAll('.status-toggle');
-    statusToggles.forEach(toggle => {
-        toggle.addEventListener('change', function() {
-            const row = this.closest('tr');
-            const isChecked = this.checked;
-            const label = this.nextElementSibling;
-            
-            if (isChecked) {
-                label.innerHTML = '<span class="text-success">Ativo</span>';
-                row.classList.remove('table-secondary', 'opacity-75');
-                row.setAttribute('data-status', 'ativo');
-            } else {
-                label.innerHTML = '<span class="text-muted">Inativo</span>';
-                row.classList.add('table-secondary', 'opacity-75');
-                row.setAttribute('data-status', 'inativo');
-            }
+    // Interruptor de status: desligar = desativar de verdade.
+    // Ele aciona o botão "Desativar" da mesma linha, que pede confirmação e envia
+    // o formulário ao servidor. Se a pessoa cancelar, o interruptor volta a ficar
+    // ligado (a página só muda quando o servidor confirma a desativação).
+    document.querySelectorAll('.status-toggle').forEach(toggle => {
+        toggle.addEventListener('change', function () {
+            if (this.checked) return;
+            this.checked = true;
+            const botao = this.closest('tr').querySelector('.desativar-btn');
+            if (botao) botao.click();
         });
     });
 });

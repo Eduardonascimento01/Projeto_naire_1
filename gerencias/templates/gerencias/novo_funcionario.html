@@ -19,38 +19,55 @@
                         </div>
                         <div>
                             <h2 class="mb-1 fw-bold">Novo Funcionário</h2>
-                            <p class="mb-0 opacity-75">Cadastre um novo colaborador na plataforma</p>
+                            <p class="mb-0 opacity-75">Cadastre um novo colaborador e o acesso dele ao sistema</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Corpo do formulário -->
                 <div class="card-body p-4 p-lg-5">
-                    <form action="{% url 'insere_novo_funcionario' %}" method="POST" id="formFuncionario" class="needs-validation" novalidate>
+                    <p class="text-muted small mb-4"><span class="text-danger">*</span> Campos obrigatórios</p>
+
+                    <!-- novalidate: os avisos são nossos (campo a campo), não os balões do navegador -->
+                    <form action="{% url 'insere_novo_funcionario' %}" method="POST" id="formFuncionario" novalidate
+                          data-url-usuario="{% url 'usuario_disponivel' %}">
                         {% csrf_token %}
-                        
+
                         <!-- Seção: Tipo e Status -->
                         <div class="row g-4 mb-4">
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">
-                                    <i class="bi bi-person-badge me-1 text-primary"></i>Tipo de Funcionário
+                                <label class="form-label fw-semibold" for="tp_funcionario">
+                                    <i class="bi bi-person-badge me-1 text-primary"></i>Tipo de Funcionário <span class="text-danger">*</span>
                                 </label>
-                                <select name="tp_funcionario" class="form-select form-select-lg shadow-sm" required>
+                                <select name="tp_funcionario" id="tp_funcionario" required
+                                        class="form-select form-select-lg shadow-sm {% if erros.tp_funcionario %}is-invalid{% endif %}"
+                                        data-valor="{{ form.tp_funcionario }}" data-msg-obrigatorio="Escolha o tipo de funcionário.">
                                     <option value="" disabled selected>Selecione o tipo</option>
-                                    <option value="1">👑 ADMINISTRADOR</option>
-                                    <option value="2">👥 MEMBRO</option>
-                                    <option value="3">💼 CONTRATADO</option>
-                                    <option value="4">🤝 VOLUNTÁRIO</option>
+                                    {% for tipo in tipos %}
+                                        {% with d=tipo.descricao|upper %}
+                                        <option value="{{ tipo.pk }}"
+                                            {% if 'ADMIN' in d and not pode_criar_admin %}disabled{% endif %}>
+                                            {% if 'ADMIN' in d %}👑 ADMINISTRADOR{% if not pode_criar_admin %} (só um administrador pode cadastrar){% endif %}
+                                            {% elif 'MEMBRO' in d %}👥 MEMBRO
+                                            {% elif 'CONTRATADO' in d %}💼 CONTRATADO
+                                            {% elif 'VOLUNT' in d %}🤝 VOLUNTÁRIO
+                                            {% else %}{{ tipo.descricao }}{% endif %}
+                                        </option>
+                                        {% endwith %}
+                                    {% endfor %}
                                 </select>
+                                <div class="invalid-feedback">{{ erros.tp_funcionario|default:"Escolha o tipo de funcionário." }}</div>
+                                <div class="dica-campo">O administrador tem acesso total, inclusive às funções de LGPD.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">
+                                <label class="form-label fw-semibold" for="flag">
                                     <i class="bi bi-toggle-on me-1 text-primary"></i>Status
                                 </label>
-                                <select name="flag" class="form-select form-select-lg shadow-sm" required>
-                                    <option value="S" selected>✅ ATIVO</option>
-                                    <option value="N">⭕ INATIVO</option>
+                                <select name="flag" id="flag" class="form-select form-select-lg shadow-sm">
+                                    <option value="S" {% if form.flag != 'N' %}selected{% endif %}>✅ ATIVO</option>
+                                    <option value="N" {% if form.flag == 'N' %}selected{% endif %}>⭕ INATIVO</option>
                                 </select>
+                                <div class="dica-campo">Funcionário inativo não consegue entrar no sistema.</div>
                             </div>
                         </div>
 
@@ -61,24 +78,36 @@
                         </div>
                         <div class="row g-4 mb-4">
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Primeiro Nome</label>
-                                <input type="text" name="pnome" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Digite o primeiro nome" required>
+                                <label class="form-label fw-semibold" for="pnome">Primeiro nome <span class="text-danger">*</span></label>
+                                <input type="text" name="pnome" id="pnome" maxlength="255" required
+                                       class="form-control form-control-lg shadow-sm {% if erros.pnome %}is-invalid{% endif %}"
+                                       value="{{ form.pnome }}" placeholder="Digite o primeiro nome"
+                                       data-msg-obrigatorio="Informe o primeiro nome.">
+                                <div class="invalid-feedback">{{ erros.pnome|default:"Informe o primeiro nome." }}</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Sobrenome</label>
-                                <input type="text" name="snome" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Digite o sobrenome" required>
+                                <label class="form-label fw-semibold" for="snome">Sobrenome <span class="text-danger">*</span></label>
+                                <input type="text" name="snome" id="snome" maxlength="255" required
+                                       class="form-control form-control-lg shadow-sm {% if erros.snome %}is-invalid{% endif %}"
+                                       value="{{ form.snome }}" placeholder="Digite o sobrenome"
+                                       data-msg-obrigatorio="Informe o sobrenome.">
+                                <div class="invalid-feedback">{{ erros.snome|default:"Informe o sobrenome." }}</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">CPF</label>
-                                <input type="text" name="cpf" class="form-control form-control-lg shadow-sm cpf-mask" 
-                                       placeholder="000.000.000-00" required>
+                                <label class="form-label fw-semibold" for="cpf">CPF <span class="text-danger">*</span></label>
+                                <input type="text" name="cpf" id="cpf" inputmode="numeric" maxlength="14" required
+                                       class="form-control form-control-lg shadow-sm cpf-mask {% if erros.cpf %}is-invalid{% endif %}"
+                                       value="{{ form.cpf }}" placeholder="000.000.000-00"
+                                       data-msg-obrigatorio="Informe o CPF." data-validar="cpf">
+                                <div class="invalid-feedback">{{ erros.cpf|default:"Informe o CPF." }}</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Telefone</label>
-                                <input type="text" name="telefone" class="form-control form-control-lg shadow-sm phone-mask" 
-                                       placeholder="(00) 00000-0000" required>
+                                <label class="form-label fw-semibold" for="telefone">Telefone (com DDD) <span class="text-danger">*</span></label>
+                                <input type="text" name="telefone" id="telefone" inputmode="tel" maxlength="15" required
+                                       class="form-control form-control-lg shadow-sm phone-mask {% if erros.telefone %}is-invalid{% endif %}"
+                                       value="{{ form.telefone }}" placeholder="(00) 00000-0000"
+                                       data-msg-obrigatorio="Informe o telefone." data-validar="telefone">
+                                <div class="invalid-feedback">{{ erros.telefone|default:"Informe o telefone." }}</div>
                             </div>
                         </div>
 
@@ -89,33 +118,48 @@
                         </div>
                         <div class="row g-4 mb-4">
                             <div class="col-md-8">
-                                <label class="form-label fw-semibold">Logradouro</label>
-                                <input type="text" name="rua" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Rua, Avenida, Alameda..." required>
+                                <label class="form-label fw-semibold" for="rua">Logradouro <span class="text-danger">*</span></label>
+                                <input type="text" name="rua" id="rua" maxlength="200" required
+                                       class="form-control form-control-lg shadow-sm {% if erros.rua %}is-invalid{% endif %}"
+                                       value="{{ form.rua }}" placeholder="Rua, Avenida, Alameda..."
+                                       data-msg-obrigatorio="Informe o logradouro.">
+                                <div class="invalid-feedback">{{ erros.rua|default:"Informe o logradouro." }}</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold">Número</label>
-                                <input type="text" name="numero" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Nº" required>
+                                <label class="form-label fw-semibold" for="numero">Número <span class="text-danger">*</span></label>
+                                <input type="text" name="numero" id="numero" maxlength="20" required
+                                       class="form-control form-control-lg shadow-sm {% if erros.numero %}is-invalid{% endif %}"
+                                       value="{{ form.numero }}" placeholder="Nº"
+                                       data-msg-obrigatorio="Informe o número (use S/N se não houver).">
+                                <div class="invalid-feedback">{{ erros.numero|default:"Informe o número (use S/N se não houver)." }}</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Complemento</label>
-                                <input type="text" name="comp" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Apto, Bloco, Casa...">
+                                <label class="form-label fw-semibold" for="comp">Complemento</label>
+                                <input type="text" name="comp" id="comp" maxlength="255"
+                                       class="form-control form-control-lg shadow-sm"
+                                       value="{{ form.comp }}" placeholder="Apto, Bloco, Casa...">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Bairro</label>
-                                <input type="text" name="bairro" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Bairro" required>
+                                <label class="form-label fw-semibold" for="bairro">Bairro <span class="text-danger">*</span></label>
+                                <input type="text" name="bairro" id="bairro" maxlength="255" required
+                                       class="form-control form-control-lg shadow-sm {% if erros.bairro %}is-invalid{% endif %}"
+                                       value="{{ form.bairro }}" placeholder="Bairro"
+                                       data-msg-obrigatorio="Informe o bairro.">
+                                <div class="invalid-feedback">{{ erros.bairro|default:"Informe o bairro." }}</div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Cidade</label>
-                                <input type="text" name="cidade" class="form-control form-control-lg shadow-sm" 
-                                       placeholder="Cidade" required>
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold" for="cidade">Cidade <span class="text-danger">*</span></label>
+                                <input type="text" name="cidade" id="cidade" maxlength="255" required
+                                       class="form-control form-control-lg shadow-sm {% if erros.cidade %}is-invalid{% endif %}"
+                                       value="{{ form.cidade }}" placeholder="Cidade"
+                                       data-msg-obrigatorio="Informe a cidade.">
+                                <div class="invalid-feedback">{{ erros.cidade|default:"Informe a cidade." }}</div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">UF</label>
-                                <select name="estado" class="form-select form-select-lg shadow-sm" required>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="estado">Estado <span class="text-danger">*</span></label>
+                                <select name="estado" id="estado" required
+                                        class="form-select form-select-lg shadow-sm {% if erros.estado %}is-invalid{% endif %}"
+                                        data-valor="{{ form.estado }}" data-msg-obrigatorio="Escolha o estado.">
                                     <option value="" disabled selected>Selecione o estado</option>
                                     <option value="AC">Acre</option>
                                     <option value="AL">Alagoas</option>
@@ -145,6 +189,51 @@
                                     <option value="SE">Sergipe</option>
                                     <option value="TO">Tocantins</option>
                                 </select>
+                                <div class="invalid-feedback">{{ erros.estado|default:"Escolha o estado." }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Seção: Acesso ao sistema -->
+                        <div class="section-title mb-3 mt-4">
+                            <i class="bi bi-shield-lock me-2"></i>
+                            <span>Acesso ao sistema</span>
+                        </div>
+                        <div class="row g-4 mb-2">
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold" for="usuario">Usuário (login) <span class="text-danger">*</span></label>
+                                <!-- autocomplete="off": o navegador não deve preencher com o SEU usuário -->
+                                <input type="text" name="usuario" id="usuario" maxlength="150" required autocomplete="off"
+                                       autocapitalize="none" spellcheck="false"
+                                       class="form-control form-control-lg shadow-sm {% if erros.usuario %}is-invalid{% endif %}"
+                                       value="{{ form.usuario }}" placeholder="ex.: maria.silva"
+                                       data-msg-obrigatorio="Escolha um nome de usuário para o login." data-validar="usuario">
+                                <div class="invalid-feedback">{{ erros.usuario|default:"Escolha um nome de usuário para o login." }}</div>
+                                <div class="valid-feedback">Nome de usuário disponível.</div>
+                                <div class="dica-campo">É com ele que a pessoa vai entrar no sistema. Sem espaços.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="senha">Senha <span class="text-danger">*</span></label>
+                                <!-- autocomplete="new-password": impede o navegador de colocar a SUA senha aqui -->
+                                <input type="password" name="senha" id="senha" required autocomplete="new-password"
+                                       class="form-control form-control-lg shadow-sm {% if erros.senha %}is-invalid{% endif %}"
+                                       placeholder="Mínimo de 8 caracteres"
+                                       data-msg-obrigatorio="Crie uma senha." data-validar="senha">
+                                <div class="invalid-feedback">{{ erros.senha|default:"Crie uma senha." }}</div>
+                                <div class="dica-campo">Pelo menos 8 caracteres, sem ser só números.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="senha2">Confirmar senha <span class="text-danger">*</span></label>
+                                <input type="password" name="senha2" id="senha2" required autocomplete="new-password"
+                                       class="form-control form-control-lg shadow-sm {% if erros.senha2 %}is-invalid{% endif %}"
+                                       placeholder="Digite a senha de novo"
+                                       data-msg-obrigatorio="Repita a senha." data-validar="senha2">
+                                <div class="invalid-feedback">{{ erros.senha2|default:"Repita a senha." }}</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="exibirSenha" data-exibir-senha>
+                                    <label class="form-check-label" for="exibirSenha">Exibir senha</label>
+                                </div>
                             </div>
                         </div>
 
@@ -291,9 +380,12 @@
         }
     }
     
-    /* Campos inválidos */
-    .form-control:invalid, .form-select:invalid {
-        border-color: #dc3545;
+    /* Os campos só ficam vermelhos depois que a pessoa passa por eles
+       (antes, todos apareciam em vermelho logo ao abrir a página). */
+    .dica-campo {
+        font-size: .8rem;
+        color: #6c757d;
+        margin-top: .3rem;
     }
     
     /* Loading do botão */
@@ -321,154 +413,63 @@
         background: #555;
     }
 </style>
-
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="{% static 'js/naire-validacao.js' %}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Máscara para CPF
-        const cpfInput = document.querySelector('.cpf-mask');
-        if (cpfInput) {
-            cpfInput.addEventListener('input', function(e) {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length <= 11) {
-                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
-                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
-                    value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-                    e.target.value = value;
-                }
-            });
-        }
-        
-        // Máscara para Telefone
-        const phoneInput = document.querySelector('.phone-mask');
-        if (phoneInput) {
-            phoneInput.addEventListener('input', function(e) {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length <= 11) {
-                    if (value.length > 2) {
-                        value = `(${value.slice(0,2)}) ${value.slice(2)}`;
-                    }
-                    if (value.length > 10) {
-                        value = value.slice(0, 10) + '-' + value.slice(10);
-                    } else if (value.length > 9) {
-                        value = value.slice(0, 9) + '-' + value.slice(9);
-                    }
-                    e.target.value = value;
-                }
-            });
-        }
-        
-        // Validação do formulário
-        const form = document.getElementById('formFuncionario');
-        
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Validar campos obrigatórios
-            const requiredFields = form.querySelectorAll('[required]');
-            let isValid = true;
-            
-            requiredFields.forEach(field => {
-                if (!field.value.trim()) {
-                    field.classList.add('is-invalid');
-                    isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
-                }
-            });
-            
-            if (!isValid) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Campos obrigatórios',
-                    text: 'Por favor, preencha todos os campos marcados como obrigatórios.',
-                    confirmButtonColor: '#667eea'
-                });
-                return;
-            }
-            
-            // Validar CPF
-            const cpf = cpfInput.value.replace(/\D/g, '');
-            if (cpf.length !== 11) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'CPF Inválido',
-                    text: 'O CPF deve conter 11 dígitos.',
-                    confirmButtonColor: '#667eea'
-                });
-                cpfInput.classList.add('is-invalid');
-                return;
-            }
-            
-            // Validar Telefone
-            const telefone = phoneInput.value.replace(/\D/g, '');
-            if (telefone.length < 10 || telefone.length > 11) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Telefone Inválido',
-                    text: 'O telefone deve conter 10 ou 11 dígitos (incluindo DDD).',
-                    confirmButtonColor: '#667eea'
-                });
-                phoneInput.classList.add('is-invalid');
-                return;
-            }
-            
-            // Confirmar cadastro
-            Swal.fire({
-                title: 'Confirmar cadastro',
-                text: 'Você tem certeza que deseja cadastrar este funcionário?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#667eea',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Sim, cadastrar',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Mostrar loading no botão
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    const originalText = submitBtn.innerHTML;
-                    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cadastrando...';
-                    submitBtn.disabled = true;
-                    submitBtn.classList.add('btn-loading');
-                    
-                    // Enviar formulário
-                    form.submit();
-                }
-            });
-        });
-        
-        // Remover classe is-invalid ao digitar
-        const inputs = form.querySelectorAll('input, select');
-        inputs.forEach(input => {
-            input.addEventListener('input', function() {
-                this.classList.remove('is-invalid');
-            });
-        });
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('formFuncionario');
+    const usuario = document.getElementById('usuario');
+
+    // Selects que voltam preenchidos depois de um erro no servidor
+    form.querySelectorAll('select[data-valor]').forEach(sel => {
+        if (sel.dataset.valor) sel.value = sel.dataset.valor;
     });
-    
-    // Função original mantida para compatibilidade
-    function confirmarAtualizacao() {
+
+    // ---------- Máscaras ----------
+    document.querySelector('.cpf-mask').addEventListener('input', function () {
+        let v = this.value.replace(/\D/g, '').slice(0, 11);
+        v = v.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        this.value = v;
+    });
+    document.querySelector('.phone-mask').addEventListener('input', function () {
+        let v = this.value.replace(/\D/g, '').slice(0, 11);
+        if (v.length > 2) v = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+        if (v.length > 10) v = v.slice(0, 10) + '-' + v.slice(10);
+        else if (v.length > 9) v = v.slice(0, 9) + '-' + v.slice(9);
+        this.value = v;
+    });
+
+    // Avisos campo a campo (regras em static/js/naire-validacao.js)
+    NaireValidacao.ativar(form);
+
+    // ---------- Envio ----------
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!NaireValidacao.validarTudo(form)) return;
         Swal.fire({
             title: 'Confirmar cadastro',
-            text: 'Você tem certeza que deseja continuar?',
+            text: `Cadastrar o funcionário e criar o login "${usuario.value.trim()}"?`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#667eea',
             cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Sim',
+            confirmButtonText: 'Sim, cadastrar',
             cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.querySelector('form').submit();
-            }
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            const botao = form.querySelector('button[type="submit"]');
+            botao.innerHTML = '<i class="bi bi-hourglass-split"></i> Cadastrando...';
+            botao.disabled = true;
+            botao.classList.add('btn-loading');
+            form.submit();
         });
-        return false;
-    }
-</script>
+    });
 
-<!-- SweetAlert2 para alertas bonitos -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    // Erro vindo do servidor: leva a pessoa ao primeiro campo com problema.
+    const erroServidor = form.querySelector('.is-invalid');
+    if (erroServidor) erroServidor.scrollIntoView({ block: 'center' });
+});
+</script>
 
 <!-- Bootstrap Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

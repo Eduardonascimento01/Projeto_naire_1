@@ -168,9 +168,7 @@
                         <td>
                             <small>
                                 <i class="bi bi-calendar3 text-muted"></i>
-                                {{ item.data_cadastro|date:"d/m/Y"|default:"—" }}
-                                <br>
-                                <span class="text-muted">{{ item.data_cadastro|date:"H:i"|default:"" }}</span>
+                                {{ item.data_cadastro|date:"m/Y"|default:"—" }}
                             </small>
                         </td>
                         <td>
@@ -522,17 +520,17 @@
         
         // Exportar lista
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.padrinho-row:visible');
+            const visibleRows = linhasVisiveis('.padrinho-row');
             let csvContent = "ID,Nome,CPF,Cidade,UF,Status,Data Cadastro,Tipo\n";
             
             visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
+                const id = textoCelula(row.cells[0]).replace('#', '') || '';
                 const nome = row.cells[1]?.querySelector('strong')?.textContent || '';
                 const cpf = row.cells[2]?.querySelector('.cpf-display')?.textContent.replace(/\./g, '').replace(/-/g, '') || '';
-                const cidade = row.cells[3]?.textContent.split('/')[0].replace('📍', '').trim() || '';
-                const uf = row.cells[3]?.textContent.split('/')[1]?.trim() || '';
-                const status = row.cells[5]?.textContent.trim() === 'Ativo' ? 'Ativo' : 'Inativo';
-                const dataCadastro = row.cells[4]?.textContent.trim() || '';
+                const cidade = textoCelula(row.cells[3]).split('/')[0].replace('📍', '').trim() || '';
+                const uf = textoCelula(row.cells[3]).split('/')[1]?.trim() || '';
+                const status = textoCelula(row.cells[5]).trim() === 'Ativo' ? 'Ativo' : 'Inativo';
+                const dataCadastro = textoCelula(row.cells[4]).trim() || '';
                 const tipo = row.cells[1]?.querySelector('small')?.textContent.trim() || '';
                 
                 csvContent += `${id},"${nome}",${cpf},"${cidade}",${uf},${status},"${dataCadastro}","${tipo}"\n`;

@@ -1,0 +1,12 @@
+{% comment %}
+Botão "LGPD" que fica ao lado do título "AÇÕES" das tabelas.
+Só aparece para quem pode usar as funções de LGPD (superusuário ou grupo LGPD).
+Liga/desliga a exibição dos botões de exportar e anonimizar; o JavaScript
+que faz isso está no fim de bases.html.
+{% endcomment %}
+{% if pode_lgpd %}
+<button type="button" class="btn btn-sm btn-modo-lgpd ms-2" data-modo-lgpd aria-pressed="false"
+        title="Mostrar ou esconder os botões de LGPD (exportar dados e anonimizar)">
+    <i class="bi bi-shield-lock"></i> <span class="rotulo">LGPD</span>
+</button>
+{% endif %}

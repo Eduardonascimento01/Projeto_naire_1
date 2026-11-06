@@ -204,7 +204,8 @@
                                     </button>
                                 </form>
                                 
-                                <!-- Formulário para Excluir (POST) -->
+                                <!-- Formulário para Excluir (POST): só para quem tem permissão LGPD -->
+                                {% if pode_lgpd %}
                                 <form action="{% url 'excluir_oficio' id_oficio=oficio.id_oficio %}" 
                                       method="POST" 
                                       class="d-inline-block excluir-form"
@@ -218,6 +219,7 @@
                                         <i class="bi bi-trash-fill"></i> Excluir
                                     </button>
                                 </form>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -632,16 +634,16 @@
         
         // Exportar lista
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.oficio-row:visible');
+            const visibleRows = linhasVisiveis('.oficio-row');
             let csvContent = "ID,Data Criação,Criador,Remetente,Destinatário,Mensagem\n";
             
             visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
+                const id = textoCelula(row.cells[0]).replace('#', '') || '';
                 const dataHora = row.cells[1]?.querySelector('strong')?.textContent || '';
                 const hora = row.cells[1]?.querySelector('small')?.textContent || '';
                 const criador = row.cells[2]?.querySelector('strong')?.textContent || '';
-                const remetente = row.cells[3]?.textContent.replace('📨', '').trim() || '';
-                const destinatario = row.cells[4]?.textContent.replace('🎯', '').trim() || '';
+                const remetente = textoCelula(row.cells[3]).replace('📨', '').trim() || '';
+                const destinatario = textoCelula(row.cells[4]).replace('🎯', '').trim() || '';
                 const mensagem = row.cells[5]?.querySelector('.mensagem-preview')?.textContent.replace('ver mais', '').trim() || '';
                 
                 csvContent += `${id},"${dataHora} ${hora}","${criador}","${remetente}","${destinatario}","${mensagem}"\n`;

@@ -35,7 +35,7 @@
                         <i class="bi bi-search text-muted"></i>
                     </span>
                     <input type="text" class="form-control border-start-0" 
-                           placeholder="Buscar por endereço, bairro ou cidade..." 
+                           placeholder="Buscar por evento, apoiador, criança ou local..." 
                            id="searchInput">
                     <button class="btn btn-primary" type="button" id="searchBtn">
                         <i class="bi bi-search"></i> Buscar
@@ -117,13 +117,12 @@
             <table class="table table-hover align-middle mb-0" id="entregasTable">
                 <thead class="table-dark">
                     <tr>
-                        <th scope="col" class="px-4">#ID</th>
-                        <th scope="col">🎁 EVENTO</th>
+                        <th scope="col" class="px-4">🎁 EVENTO</th>
                         <th scope="col">👤 APOIADOR</th>
                         <th scope="col">👶 CRIANÇA</th>
-                        <th scope="col">📍 ENDEREÇO</th>
+                        <th scope="col">📍 LOCAL</th>
                         <th scope="col">🏙️ CIDADE/UF</th>
-                        <th scope="col">📅 DATA CHEGADA</th>
+                        <th scope="col">📅 DATA</th>
                         <th scope="col">✅ STATUS</th>
                         <th scope="col" class="text-center">⚙️ AÇÕES</th>
                     </tr>
@@ -134,26 +133,25 @@
                         data-status="{{ entrega.flag_finalizado }}"
                         data-cidade="{{ entrega.cidade|default:'' }}"
                         data-data="{{ entrega.data_cadastro|date:'Y-m-d' }}">
-                        <td class="px-4 fw-bold">#{{ entrega.id_entrega }}</td>
-                        <td>
+                        <td class="px-4">
                             <span class="badge bg-primary bg-opacity-10 text-dark p-2">
-                                <i class="bi bi-calendar-event"></i> ID: {{ entrega.id_evento|default:"—" }}
+                                <i class="bi bi-calendar-event"></i> {{ entrega.evento.nome|default:"Evento removido" }}
                             </span>
                         </td>
                         <td>
                             <span class="badge bg-info bg-opacity-10 text-dark p-2">
-                                <i class="bi bi-person-heart"></i> ID: {{ entrega.id_mad_pad|default:"—" }}
+                                <i class="bi bi-person-heart"></i> {{ entrega.apoiador|default:"—" }}
                             </span>
                         </td>
                         <td>
                             <span class="badge bg-success bg-opacity-10 text-dark p-2">
-                                <i class="bi bi-person-badge"></i> ID: {{ entrega.id_crianca|default:"—" }}
+                                <i class="bi bi-person-badge"></i> {{ entrega.crianca|default:"—" }}
                             </span>
                         </td>
                         <td>
                             <small>
                                 <i class="bi bi-geo-alt-fill text-muted"></i>
-                                {{ entrega.endereco|default:"—" }}, {{ entrega.bairro|default:"—" }}
+                                {{ entrega.endereco|default:"—" }}
                             </small>
                         </td>
                         <td>
@@ -164,7 +162,7 @@
                         <td>
                             <small>
                                 <i class="bi bi-calendar-check text-muted"></i>
-                                {{ entrega.data_chegada|date:"d/m/Y H:i"|default:"—" }}
+                                {{ entrega.evento.data_evento|default:"—" }}
                             </small>
                         </td>
                         <td>
@@ -196,7 +194,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <i class="bi bi-truck display-1 text-muted"></i>
                             <p class="mt-3 text-muted">Nenhuma entrega cadastrada ainda.</p>
                             <form action="{% url 'nova_entrega' %}" method="POST" style="display: inline-block;">
@@ -422,19 +420,20 @@
         
         // Exportar lista
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const visibleRows = document.querySelectorAll('.entrega-row:visible');
-            let csvContent = "ID,ID Evento,ID Apoiador,ID Criança,Endereço,Cidade,UF,Status\n";
+            const visibleRows = linhasVisiveis('.entrega-row');
+            let csvContent = "Evento,Apoiador,Criança,Local,Cidade,UF,Data,Status\n";
             
             visibleRows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
-                const idEvento = row.cells[1]?.textContent.replace('🎁', '').trim() || '';
-                const idApoiador = row.cells[2]?.textContent.replace('👤', '').trim() || '';
-                const idCrianca = row.cells[3]?.textContent.replace('👶', '').trim() || '';
-                const endereco = row.cells[4]?.textContent.trim() || '';
-                const cidadeUf = row.cells[5]?.textContent.trim() || '';
-                const status = row.cells[7]?.textContent.trim() || '';
+                const evento = textoCelula(row.cells[0]);
+                const apoiador = textoCelula(row.cells[1]);
+                const crianca = textoCelula(row.cells[2]);
+                const local = textoCelula(row.cells[3]);
+                // A célula mostra "Cidade/UF"; o cabeçalho tem as duas colunas separadas.
+                const [cidade, uf = ''] = textoCelula(row.cells[4]).split('/');
+                const data = textoCelula(row.cells[5]);
+                const status = textoCelula(row.cells[6]);
                 
-                csvContent += `${id},${idEvento},${idApoiador},${idCrianca},"${endereco}","${cidadeUf}","${status}"\n`;
+                csvContent += `"${evento}","${apoiador}","${crianca}","${local}","${cidade.trim()}","${uf.trim()}","${data}","${status}"\n`;
             });
             
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });

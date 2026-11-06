@@ -22,3 +22,6 @@ relatorio_erros.md
 # Arquivos do SO
 .DS_Store
 .env
+
+# Banco de demonstração (SQLite)
+*.sqlite3

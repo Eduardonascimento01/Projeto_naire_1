@@ -73,7 +73,7 @@
                                 </label>
                                 <input type="text" 
                                        id="data_evento" 
-                                       name="data_evento" 
+                                       name="data_evento" data-validar="data-evento" 
                                        class="form-control form-control-lg shadow-sm date-mask" 
                                        placeholder="dd/mm/aaaa"
                                        required>
@@ -380,14 +380,8 @@
                     hoje.setHours(0, 0, 0, 0);
                     
                     if (data.getDate() !== dia || data.getMonth() + 1 !== mes || data.getFullYear() !== ano) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Data inválida',
-                            text: 'Por favor, informe uma data válida.',
-                            confirmButtonColor: '#3498db'
-                        });
-                        this.value = '';
-                        this.classList.add('is-invalid');
+                        // Data inexistente (ex.: 31/02): o aviso aparece no próprio campo
+                        // (naire-validacao.js). Antes uma caixa cobria a tela e o campo era apagado.
                     } else if (data < hoje) {
                         Swal.fire({
                             icon: 'warning',
@@ -409,15 +403,9 @@
                         this.classList.remove('is-invalid');
                         this.classList.add('is-valid');
                     }
-                } else if (value) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Formato inválido',
-                        text: 'Use o formato dd/mm/aaaa',
-                        confirmButtonColor: '#3498db'
-                    });
-                    this.value = '';
                 }
+                // Formato errado: o aviso aparece no próprio campo (naire-validacao.js),
+                // sem apagar o que foi digitado.
             });
         }
         

@@ -1,7 +1,6 @@
 from django_cryptography.fields import encrypt
 from django.db import models
 from django.conf import settings
-import mysql.connector
 
 from gerencias.cpf_utils import hash_cpf, mascarar_cpf
 
@@ -35,6 +34,10 @@ def _campo_cpf_hash():
 class Conn:
     @staticmethod
     def _get_connection():
+        # Import aqui dentro: só o criptografar_banco.py usa esta classe, então
+        # o site não precisa do mysql-connector-python instalado (economiza ~60 MB).
+        import mysql.connector
+
         db_conf = settings.DATABASES['default']
         return mysql.connector.connect(
             host=db_conf.get('HOST', 'localhost'),
@@ -298,3 +301,26 @@ class TbLogAuditoria(models.Model):
 
     def __str__(self):
         return f"{self.data_hora} - {self.usuario} - {self.acao} - {self.rota}"
+
+class TbFuncionarioUsuario(models.Model):
+    """
+    Liga o cadastro do funcionário (tb_funcionario) ao login dele (auth_user).
+
+    Tabela nova, criada pelo `python manage.py migrate` (managed = True): as
+    tabelas antigas não são alteradas. Funcionários cadastrados antes desta
+    mudança simplesmente não têm login ligado.
+    """
+    funcionario = models.OneToOneField(
+        TbFuncionario, models.DO_NOTHING, db_column='id_funcionario',
+        db_constraint=False, related_name='acesso')
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL, models.CASCADE, db_column='id_usuario',
+        related_name='funcionario_acesso')
+    data_cadastro = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = True
+        db_table = 'tb_funcionario_usuario'
+
+    def __str__(self):
+        return f'{self.funcionario_id} -> {self.usuario_id}'

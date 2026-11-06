@@ -42,6 +42,9 @@ O resultado é salvo em `relatorio_erros.md`. O comando retorna código de saíd
 
 Essa verificação não executa o pentest nem altera o banco de dados.
 
+## 🌐 Demonstração online (PythonAnywhere)
+Para publicar uma versão de teste com dados fictícios, siga o guia [DEPLOY_PYTHONANYWHERE.md](DEPLOY_PYTHONANYWHERE.md).
+
 ## ✅ Testes automatizados
 Os testes usam SQLite em memória (não precisam de MySQL e não tocam no banco real):
 

@@ -80,7 +80,7 @@
                                 </label>
                                 <input type="text" 
                                        id="data_evento" 
-                                       name="data_evento" 
+                                       name="data_evento" data-validar="data-evento" 
                                        class="form-control form-control-lg shadow-sm date-mask" 
                                        placeholder="dd/mm/aaaa"
                                        value="{{ registro.data_evento|default:'' }}"
@@ -409,40 +409,8 @@
                 }
             });
             
-            // Validação de data ao sair do campo
-            dataEventoInput.addEventListener('blur', function() {
-                const value = this.value;
-                if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-                    const parts = value.split('/');
-                    const dia = parseInt(parts[0], 10);
-                    const mes = parseInt(parts[1], 10);
-                    const ano = parseInt(parts[2], 10);
-                    
-                    const data = new Date(ano, mes - 1, dia);
-                    
-                    if (data.getDate() !== dia || data.getMonth() + 1 !== mes || data.getFullYear() !== ano) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Data inválida',
-                            text: 'Por favor, informe uma data válida.',
-                            confirmButtonColor: '#3498db'
-                        });
-                        this.value = '';
-                        this.classList.add('is-invalid');
-                    } else {
-                        this.classList.remove('is-invalid');
-                        this.classList.add('is-valid');
-                    }
-                } else if (value) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Formato inválido',
-                        text: 'Use o formato dd/mm/aaaa',
-                        confirmButtonColor: '#3498db'
-                    });
-                    this.value = '';
-                }
-            });
+            // A data é conferida no próprio campo (naire-validacao.js, regra "data-evento").
+            // Antes, ao sair do campo, uma caixa cobria a tela e a data digitada era apagada.
         }
         
         // Validação do formulário

@@ -152,30 +152,35 @@
                                     </small>
                                 </div>
                             </div>
-                        </div>
+                        </td>
                         <td>
                             <code class="cpf-display">{{ funcionario.cpf_mascarado }}</code>
-                        </div>
+                        </td>
                         <td>
+                            <!-- SEGURANÇA: Máscara LGPD no telefone (igual à lista de ativos) -->
                             <i class="bi bi-whatsapp text-success"></i>
-                            <span class="phone-display">{{ funcionario.telefone }}</span>
-                        </div>
+                            <span class="phone-display">({{ funcionario.telefone|slice:":2" }}) *****-{{ funcionario.telefone|slice:"7:11" }}</span>
+                        </td>
                         <td>
+                            <!-- SEGURANÇA: Endereço minimizado LGPD (igual à lista de ativos) -->
                             <small>
                                 <i class="bi bi-geo-alt-fill text-muted"></i>
-                                {{ funcionario.endereco }}, {{ funcionario.complemento|default:"—" }}
+                                *** (Oculto - LGPD) ***
+                                <br>
+                                <i class="bi bi-pin-map-fill text-muted"></i>
+                                {{ funcionario.bairro }}
                             </small>
-                        </div>
+                        </td>
                         <td>
                             <span class="badge bg-info bg-opacity-10 text-dark p-2">
                                 <i class="bi bi-building"></i> {{ funcionario.cidade }}/{{ funcionario.estado }}
                             </span>
-                        </div>
+                        </td>
                         <td>
                             <span class="badge bg-warning text-dark">
                                 <i class="bi bi-exclamation-triangle-fill"></i> Inativo
                             </span>
-                        </div>
+                        </td>
                         <td>
                             <div class="text-center">
                                 <!-- Botão Reativar convertido para POST -->
@@ -192,8 +197,8 @@
                                     </button>
                                 </form>
                             </div>
-                        </div>
-                    </div>
+                        </td>
+                    </tr>
                     {% empty %}
                     <tr>
                         <td colspan="8" class="text-center py-5">
@@ -560,13 +565,13 @@
         
         // Exportar lista
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const rows = document.querySelectorAll('.funcionario-row:visible');
+            const rows = linhasVisiveis('.funcionario-row');
             let csvContent = "ID,Nome,CPF,Telefone,Cidade,Estado\n";
             
             rows.forEach(row => {
-                const id = row.cells[0]?.textContent.replace('#', '') || '';
+                const id = textoCelula(row.cells[0]).replace('#', '') || '';
                 const nome = row.cells[1]?.querySelector('strong')?.textContent || '';
-                const cpf = row.cells[2]?.textContent || '';
+                const cpf = textoCelula(row.cells[2]) || '';
                 const telefone = row.cells[3]?.querySelector('.phone-display')?.textContent || '';
                 const cidade = row.getAttribute('data-cidade') || '';
                 const estado = row.getAttribute('data-estado') || '';
