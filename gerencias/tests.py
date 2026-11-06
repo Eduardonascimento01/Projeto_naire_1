@@ -470,3 +470,50 @@ class VisualTests(BaseLogado):
         pagina = self.client.get(reverse('lista_responsavel'))
         self.assertContains(pagina, '/assets/css/naire.css')
         self.assertContains(pagina, '<body class="naire">')
+
+
+# ----------------------------------------------------------------------
+# Ajustes das tabelas (datas, colunas) e modo LGPD
+# ----------------------------------------------------------------------
+class AjustesTabelasTests(BaseLogado):
+    def test_data_de_cadastro_aparece_como_mes_e_ano(self):
+        from datetime import datetime
+        from django.utils import timezone
+        criar_responsavel(data_cadastro=timezone.make_aware(datetime(2026, 3, 15, 14, 30)))
+        pagina = self.client.get(reverse('lista_responsavel')).content.decode()
+        self.assertIn('03/2026', pagina)
+        self.assertNotIn('15/03/2026', pagina)
+        self.assertNotIn('14:30', pagina)
+
+    def test_lista_de_criancas_sem_responsavel_e_sem_acoes(self):
+        resp = criar_responsavel()
+        TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='Zeca', data_nascimento='10/05/2018', flag_ativo='S')
+        pagina = self.client.get(reverse('lista_filhos_total')).content.decode()
+        self.assertNotIn('# RESP', pagina)
+        self.assertNotIn('AÇÃO</th>', pagina)
+        self.assertNotIn(reverse('desativar_filho', args=[resp.pk]), pagina)
+        self.assertIn('**/**/2018', pagina)                                   # ano de nascimento
+        self.assertIn(reverse('lista_filhos', args=[resp.pk]), pagina)       # link para a família
+
+    def test_lista_de_funcionarios_sem_coluna_tipo(self):
+        pagina = self.client.get(reverse('lista_funcionarios')).content.decode()
+        self.assertNotIn('TIP FUNC', pagina)
+
+    def test_editar_funcionario_marca_o_tipo_atual(self):
+        """Antes nenhuma opção ficava marcada e, ao salvar, o tipo era trocado sem aviso."""
+        tipos = [TbTipoFuncionario.objects.create(descricao=d) for d in ('A', 'B', 'C')]
+        func = TbFuncionario.objects.create(id_tipo=tipos[2], pnome='F', snome='G', cpf=CPF_A,
+                                            endereco='R', bairro='B', cidade='C', estado='SP', flag_ativo='S')
+        pagina = self.client.get(reverse('editar_funcionario', args=[func.pk])).content.decode()
+        self.assertRegex(pagina, rf'<option value="{tipos[2].pk}"\s+selected>')
+
+    def test_botao_modo_lgpd_so_para_quem_tem_permissao(self):
+        criar_responsavel()
+        botao = 'class="btn btn-sm btn-modo-lgpd'
+        pagina = self.client.get(reverse('lista_responsavel'))
+        self.assertNotContains(pagina, botao)
+        self.assertNotContains(pagina, 'class="acoes-lgpd"')
+        self.dar_permissao_lgpd()
+        pagina = self.client.get(reverse('lista_responsavel'))
+        self.assertContains(pagina, botao)
+        self.assertContains(pagina, 'class="acoes-lgpd"')

@@ -112,6 +112,35 @@ body.naire {
     vertical-align: middle;
 }
 
+/* A tabela rola dentro de uma "janela" do tamanho da tela: a barra de
+   rolagem lateral fica sempre visível (antes ela só aparecia depois do
+   último cadastro) e o cabeçalho fica fixo enquanto as linhas rolam.
+   5.5rem = altura do menu fixo + uma folga. */
+.naire .table-responsive {
+    max-height: calc(100vh - 5.5rem);
+    overflow: auto;
+    scrollbar-width: thin;                       /* Firefox */
+    scrollbar-color: var(--naire-verde) #e9edf2;
+}
+
+@supports (height: 100dvh) {                     /* celular: desconta a barra do navegador */
+    .naire .table-responsive { max-height: calc(100dvh - 5.5rem); }
+}
+
+.naire .table-responsive::-webkit-scrollbar { width: 10px; height: 10px; }
+.naire .table-responsive::-webkit-scrollbar-track { background: #e9edf2; }
+.naire .table-responsive::-webkit-scrollbar-thumb {
+    background: var(--naire-verde);
+    border-radius: 10px;
+    border: 2px solid #e9edf2;
+}
+
+.naire .table-responsive thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
 /* Cada informação numa linha só (antes, nomes e datas quebravam em 3 linhas). */
 .naire .table tbody td {
     white-space: nowrap;
@@ -155,6 +184,10 @@ body.naire {
     .naire .table-responsive .table tbody tr > :last-child {
         background-color: #fff;
     }
+
+    .naire .table-responsive .table thead tr > :last-child {
+        z-index: 3;
+    }
 }
 
 .naire .table .avatar-circle {
@@ -176,9 +209,32 @@ body.naire {
     border-radius: calc(var(--naire-raio) + .2rem);
 }
 
-/* ---------- Menu superior ---------- */
-.naire .navbar {
-    box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+/* ---------- Menu superior em "moldura", fixo no topo ----------
+   O <header> fica grudado no topo (sticky-top) e tem o mesmo fundo da
+   página, levemente translúcido; o menu dentro dele é um cartão com borda. */
+.naire .naire-topo {
+    padding: .5rem .5rem 0;
+    background: rgba(233, 237, 244, .85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.naire .naire-menu {
+    max-width: 1600px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: calc(var(--naire-raio) + .25rem);
+    box-shadow: 0 2px 10px rgba(30, 50, 90, .08);
+    padding: .35rem .5rem;
+}
+
+/* Celular: o menu aberto rola por dentro, sem passar do tamanho da tela. */
+@media (max-width: 991.98px) {
+    .naire .naire-menu .navbar-collapse {
+        max-height: calc(100vh - 5rem);
+        overflow-y: auto;
+    }
 }
 
 .naire .navbar-brand {
@@ -232,4 +288,43 @@ body.naire {
     .naire form .d-flex.justify-content-end > a.btn {
         flex: 1 1 100%;
     }
+}
+
+/* ==========================================================================
+   Modo LGPD: os botões de exportar/anonimizar só aparecem quando quem tem
+   permissão liga o botão "LGPD" no título da coluna de ações.
+   (A permissão de verdade é conferida no servidor; isto só evita cliques
+   acidentais numa ação que não tem volta.)
+   ========================================================================== */
+.naire .acoes-lgpd {
+    display: inline-flex;
+    gap: .25rem;
+    padding-left: .35rem;
+    margin-left: .1rem;
+    border-left: 2px dashed rgba(220, 53, 69, .35);
+}
+
+.naire:not(.modo-lgpd) .acoes-lgpd {
+    display: none;
+}
+
+.naire .btn-modo-lgpd {
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .55);
+    background: transparent;
+    font-size: .7rem;
+    padding: .15rem .45rem;
+    min-height: 0;
+    vertical-align: middle;
+}
+
+.naire .btn-modo-lgpd:hover {
+    background: rgba(255, 255, 255, .15);
+    color: #fff;
+}
+
+.naire .btn-modo-lgpd[aria-pressed="true"] {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
 }

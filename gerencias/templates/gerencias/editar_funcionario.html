@@ -56,16 +56,16 @@
                                         <i class="bi bi-person-vcard"></i> Tipo de Funcionário
                                     </label>
                                     <select name="id_tipo" class="form-select shadow-sm">
-                                        <option value="1" {% if item.id_tipo == 1 or item.id_tipo == '1' %}selected{% endif %}>
+                                        <option value="1" {% if item.id_tipo_id == 1 %}selected{% endif %}>
                                             👑 ADMIN
                                         </option>
-                                        <option value="2" {% if item.id_tipo == 2 or item.id_tipo == '2' %}selected{% endif %}>
+                                        <option value="2" {% if item.id_tipo_id == 2 %}selected{% endif %}>
                                             👥 MEMBRO
                                         </option>
-                                        <option value="3" {% if item.id_tipo == 3 or item.id_tipo == '3' %}selected{% endif %}>
+                                        <option value="3" {% if item.id_tipo_id == 3 %}selected{% endif %}>
                                             💼 CONTRATADO
                                         </option>
-                                        <option value="4" {% if item.id_tipo == 4 or item.id_tipo == '4' %}selected{% endif %}>
+                                        <option value="4" {% if item.id_tipo_id == 4 %}selected{% endif %}>
                                             🤝 VOLUNTÁRIO
                                         </option>
                                     </select>

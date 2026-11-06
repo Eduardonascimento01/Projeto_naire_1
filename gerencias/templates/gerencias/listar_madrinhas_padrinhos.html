@@ -131,7 +131,7 @@
                         <th scope="col">📍 CIDADE/UF</th>
                         <th scope="col">📅 DATA CADASTRO</th>
                         <th scope="col">✅ STATUS</th>
-                        <th scope="col" class="text-center" colspan="2">⚙️ AÇÕES</th>
+                        <th scope="col" class="text-center">⚙️ AÇÕES{% include 'gerencias/_botao_modo_lgpd.html' %}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,9 +179,7 @@
                         <td>
                             <small>
                                 <i class="bi bi-calendar3 text-muted"></i>
-                                {{ item.data_cadastro|date:"d/m/Y"|default:"—" }}
-                                <br>
-                                <span class="text-muted">{{ item.data_cadastro|date:"H:i"|default:"" }}</span>
+                                {{ item.data_cadastro|date:"m/Y"|default:"—" }}
                             </small>
                         </td>
                         <td>
@@ -225,6 +223,7 @@
                                 
                                 <!-- BOTÕES DE PRIVACIDADE (LGPD) - VISÍVEIS APENAS PARA A DIRETORIA -->
                                 {% if pode_lgpd %}
+                                <span class="acoes-lgpd">
                                 <a href="{% url 'exportar_dados_titular' item.id_mad_pad %}"    class="btn btn-info btn-sm" title="Exportar Dados LGPD">
                                     <i class="bi bi-download"></i> Exportar JSON
                                 </a>
@@ -235,6 +234,7 @@
                                         <i class="bi bi-trash"></i> Anonimizar
                                     </button>
                                 </form>
+                                </span>
                                 {% endif %}
                                                                                     
                             </div>

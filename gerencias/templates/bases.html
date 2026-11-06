@@ -9,7 +9,9 @@
         <link href="{% static 'css/naire.css' %}" rel="stylesheet">
     </head>
     <body class="naire">
-        <nav class="navbar navbar-expand-lg" style="background: linear-gradient(135deg, #ffffff 0%, #f0f2f5 100%);" data-bs-theme="light">
+        <!-- Menu em "moldura", fixo no topo enquanto a página rola -->
+        <header class="naire-topo sticky-top">
+        <nav class="navbar navbar-expand-lg naire-menu" data-bs-theme="light">
             <div class="container-fluid">
                 <a class="navbar-brand" href="{% url 'home' %}">HOME</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -228,9 +230,40 @@
                 </div>
             </div>
         </nav>
+        </header>
         <main>
         {% block container %}{% endblock%}
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+        <script>
+            // Botão "LGPD" das tabelas: liga/desliga os botões de exportar e anonimizar.
+            // A escolha fica guardada neste navegador (localStorage). Começa desligado.
+            (function () {
+                var CHAVE = 'naire-modo-lgpd';
+                var botoes = document.querySelectorAll('[data-modo-lgpd]');
+                if (!botoes.length) return;
+
+                function lerEscolha() {
+                    try { return localStorage.getItem(CHAVE) === 'ligado'; } catch (e) { return false; }
+                }
+
+                function aplicar(ligado) {
+                    document.body.classList.toggle('modo-lgpd', ligado);
+                    botoes.forEach(function (botao) {
+                        botao.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+                        botao.querySelector('.rotulo').textContent = ligado ? 'LGPD ligado' : 'LGPD';
+                    });
+                }
+
+                aplicar(lerEscolha());
+                botoes.forEach(function (botao) {
+                    botao.addEventListener('click', function () {
+                        var ligado = !document.body.classList.contains('modo-lgpd');
+                        try { localStorage.setItem(CHAVE, ligado ? 'ligado' : 'desligado'); } catch (e) {}
+                        aplicar(ligado);
+                    });
+                });
+            })();
+        </script>
     </body>
 </html>

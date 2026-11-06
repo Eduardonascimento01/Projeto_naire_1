@@ -147,9 +147,8 @@
                         <td class="px-4 fw-bold text-muted">#{{ item.id_responsavel }}</td>
                         <td>
                             <small>
-                                <i class="bi bi-calendar3 text-muted"></i><br>
-                                {{ item.data_cadastro|date:"d/m/Y"|default:"—" }}
-                                <span class="text-muted">{{ item.data_cadastro|date:"H:i"|default:"" }}</span>
+                                <i class="bi bi-calendar3 text-muted"></i>
+                                {{ item.data_cadastro|date:"m/Y"|default:"—" }}
                             </small>
                         </td>
                         <td>
