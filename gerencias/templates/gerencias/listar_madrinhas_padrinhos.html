@@ -224,7 +224,7 @@
                                 </form>
                                 
                                 <!-- BOTÕES DE PRIVACIDADE (LGPD) - VISÍVEIS APENAS PARA A DIRETORIA -->
-                                {% if request.user.is_superuser %}
+                                {% if pode_lgpd %}
                                 <a href="{% url 'exportar_dados_titular' item.id_mad_pad %}"    class="btn btn-info btn-sm" title="Exportar Dados LGPD">
                                     <i class="bi bi-download"></i> Exportar JSON
                                 </a>

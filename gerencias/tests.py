@@ -435,3 +435,31 @@ class DemoTests(TestCase):
         saida = StringIO()
         call_command('criar_tabelas_demo', stdout=saida)
         self.assertIn('0 tabela(s) criada(s)', saida.getvalue())
+
+
+# ----------------------------------------------------------------------
+# Botões de LGPD seguem a mesma regra das views
+# ----------------------------------------------------------------------
+class BotoesLgpdTests(BaseLogado):
+    def test_staff_sem_grupo_nao_ve_botoes(self):
+        criar_responsavel()
+        pagina = self.client.get(reverse('lista_responsavel'))
+        self.assertNotContains(pagina, 'Exportar Dados LGPD')
+
+    def test_membro_do_grupo_lgpd_ve_botoes(self):
+        """Antes, os botões só apareciam para superusuário, mesmo com o grupo LGPD."""
+        self.dar_permissao_lgpd()
+        resp = criar_responsavel()
+        TbMadrinhaPadrinho.objects.create(pnome='P', flag_ativo='S')
+        pagina = self.client.get(reverse('lista_responsavel'))
+        self.assertContains(pagina, reverse('exportar_dados_responsavel', args=[resp.pk]))
+        pagina = self.client.get(reverse('lista_madrinha_padrinho'))
+        self.assertContains(pagina, 'Anonimizar Titular LGPD')
+
+    def test_excluir_oficio_so_aparece_com_permissao(self):
+        from gerencias.models import TbOficios
+        oficio = TbOficios.objects.create(id_usuario_id=self.user.id, destinatario='X', mensagem='M')
+        url_excluir = reverse('excluir_oficio', args=[oficio.pk])
+        self.assertNotContains(self.client.get(reverse('lista_oficio')), url_excluir)
+        self.dar_permissao_lgpd()
+        self.assertContains(self.client.get(reverse('lista_oficio')), url_excluir)

@@ -150,11 +150,18 @@ python manage.py popular_demo --usuarios ana bruno carla
 O comando mostra uma senha para cada conta. **Ela aparece só uma vez.**
 Mande para cada pessoa por mensagem **privada**.
 
-Para quem vai testar exportar e anonimizar (LGPD):
+Para quem vai testar exportar, anonimizar e excluir ofício (LGPD):
 
 ```bash
 python manage.py popular_demo --usuarios dani --lgpd
 ```
+
+Membros do grupo **LGPD** veem os mesmos botões de LGPD que o superusuário.
+Para dar ou tirar essa permissão de uma conta que já existe, use o painel
+`/admin/` → **Usuários** → escolha a conta → **Grupos**.
+
+O painel `/admin/` completo continua só para superusuários. Para mostrar
+essa parte ao grupo, apresente compartilhando a tela.
 
 Contas que já existem não são alteradas, e os dados fictícios não são
 duplicados.

@@ -173,7 +173,7 @@
                                 </form>
 
                                 <!-- BOTÕES LGPD - VISÍVEIS APENAS PARA A DIRETORIA -->
-                                {% if request.user.is_superuser %}
+                                {% if pode_lgpd %}
                                     <a href="{% url 'exportar_dados_funcionario' funcionario.id_funcionario %}" class="btn btn-info btn-sm text-white" data-bs-toggle="tooltip" title="Exportar Dados LGPD">
                                         <i class="bi bi-download"></i> LGPD
                                     </a>

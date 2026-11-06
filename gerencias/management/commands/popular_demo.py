@@ -26,7 +26,7 @@ from gerencias.models import (
     TbApadrinhamentoCrianca, TbCadastroResponsavel, TbEntrega, TbEvento,
     TbFilhosResponsavel, TbFuncionario, TbMadrinhaPadrinho, TbTipoFuncionario,
 )
-from gerencias.views import GRUPO_LGPD
+from gerencias.permissoes import GRUPO_LGPD
 
 PRIMEIROS = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Fábio', 'Gabriela', 'Heitor',
              'Isabela', 'João', 'Larissa', 'Marcos', 'Natália', 'Otávio', 'Paula', 'Rafael']

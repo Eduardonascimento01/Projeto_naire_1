@@ -12,6 +12,8 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
+# GRUPO_LGPD: membros (e superusuários) podem exportar, anonimizar e excluir.
+from gerencias.permissoes import GRUPO_LGPD, pode_usar_lgpd
 from gerencias.cpf_utils import cpf_valido, hash_cpf, limpar_cpf, somente_digitos, PREFIXO_ANONIMO
 from gerencias.models import (
     TbFuncionario, TbTipoFuncionario, TbCadastroResponsavel,
@@ -20,10 +22,6 @@ from gerencias.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Nome do grupo (Admin > Grupos) cujos membros podem exportar, anonimizar
-# e excluir. Superusuários também podem.
-GRUPO_LGPD = 'LGPD'
 
 
 # ==========================================
@@ -38,9 +36,8 @@ def lgpd_required(view):
     """Restringe a view a superusuários e membros do grupo LGPD."""
     @wraps(view)
     def _wrapper(request, *args, **kwargs):
-        user = request.user
-        if not (user.is_superuser or user.groups.filter(name=GRUPO_LGPD).exists()):
-            logger.warning("Acesso LGPD negado a %s em %s", user.username, request.path)
+        if not pode_usar_lgpd(request.user):
+            logger.warning("Acesso LGPD negado a %s em %s", request.user.username, request.path)
             return pagina_erro(
                 request,
                 mensagem="Você não tem permissão para esta ação. Fale com um administrador.",
