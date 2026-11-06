@@ -328,3 +328,14 @@ body.naire {
     border-color: #ffc107;
     color: #212529;
 }
+
+/* ---------- Avisos do sistema (mensagens de sucesso e erro) ---------- */
+.naire .naire-mensagens {
+    padding: .75rem .75rem 0;
+}
+
+.naire .naire-mensagens .alert {
+    margin-bottom: .5rem;
+    border-radius: var(--naire-raio);
+    font-size: .95rem;
+}

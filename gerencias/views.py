@@ -205,6 +205,28 @@ def _registrar_auditoria(request, acao, rota):
     )
 
 
+def _definir_situacao_familia(responsavel, ativo):
+    """
+    Ativa ('S') ou desativa ('N') o responsável E todas as crianças da família.
+    Uma família desativada não deve ter crianças "soltas" aparecendo nas listas.
+    Devolve quantas crianças foram atualizadas.
+    """
+    responsavel.flag_ativo = ativo
+    responsavel.save(update_fields=['flag_ativo'])
+    return TbFilhosResponsavel.objects.filter(id_responsavel=responsavel).update(
+        flag_ativo=ativo, data_atualizacao=timezone.now())
+
+
+def _remover_apadrinhamentos(id_mad_pad):
+    """
+    Tira o padrinho/madrinha de todas as crianças que ele(a) apadrinha.
+    As crianças voltam a ficar disponíveis para outro apadrinhamento.
+    O histórico de entregas não é apagado.
+    """
+    removidos, _ = TbApadrinhamentoCrianca.objects.filter(id_mad_pad_id=id_mad_pad).delete()
+    return removidos
+
+
 def _anonimizar_endereco(obj, estado='--'):
     obj.endereco = "Removido"
     obj.complemento = ""
@@ -283,6 +305,7 @@ def desativa_funcionario(request, id_funcionario):
     func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
     func.flag_ativo = 'N'
     func.save(update_fields=['flag_ativo'])
+    messages.success(request, f'{func} foi desativado(a). Para reativar, use o menu Funcionários > Desativados.')
     return redirect('lista_funcionarios')
 
 
@@ -293,6 +316,7 @@ def reativa_funcionario(request, id_funcionario):
     func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
     func.flag_ativo = 'S'
     func.save(update_fields=['flag_ativo'])
+    messages.success(request, f'{func} foi reativado(a).')
     return redirect('lista_funcionarios')
 
 
@@ -451,11 +475,15 @@ def atualiza_responsavel(request):
     responsavel.cidade = request.POST.get('cidade')
     responsavel.estado = request.POST.get('estado')
     responsavel.flag_validado = request.POST.get('validado') or responsavel.flag_validado
+    ativo_antes = responsavel.flag_ativo
     responsavel.flag_ativo = request.POST.get('ativo') or responsavel.flag_ativo
     responsavel.ultima_atualizacao = timezone.now()
     if not _salvar_com_cpf_unico(responsavel):
         messages.error(request, 'CPF já pertence a outro responsável.')
         return redirect('edit_responsavel', id_responsavel=responsavel.pk)
+    if responsavel.flag_ativo != ativo_antes:
+        # Mudou a situação no formulário: as crianças acompanham o responsável.
+        _definir_situacao_familia(responsavel, responsavel.flag_ativo)
     return redirect('lista_responsavel')
 
 
@@ -474,8 +502,9 @@ def valida_responsavel(request, id_responsavel):
 @tratar_erros
 def desativa_responsavel(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
-    responsavel.flag_ativo = 'N'
-    responsavel.save(update_fields=['flag_ativo'])
+    with transaction.atomic():
+        criancas = _definir_situacao_familia(responsavel, 'N')
+    messages.success(request, f'Família de {responsavel} desativada ({criancas} criança(s) também desativada(s)).')
     return redirect('lista_responsavel')
 
 
@@ -484,8 +513,9 @@ def desativa_responsavel(request, id_responsavel):
 @tratar_erros
 def reativa_responsavel(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
-    responsavel.flag_ativo = 'S'
-    responsavel.save(update_fields=['flag_ativo'])
+    with transaction.atomic():
+        criancas = _definir_situacao_familia(responsavel, 'S')
+    messages.success(request, f'Família de {responsavel} reativada ({criancas} criança(s) também reativada(s)).')
     return redirect('lista_responsavel')
 
 
@@ -837,12 +867,18 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
     registro.bairro = request.POST.get('bairro', '').strip()
     registro.cidade = request.POST.get('cidade', '').strip()
     registro.estado = request.POST.get('estado', '').strip()
+    ativo_antes = registro.flag_ativo
     registro.flag_ativo = request.POST.get('flag_ativo') or registro.flag_ativo
     registro.atualizacao_cad = timezone.now()
     if not _salvar_com_cpf_unico(registro):
         messages.error(request, 'CPF já pertence a outro padrinho/madrinha.')
         return redirect('editar_madrinha_padrinho', id_mad_pad=registro.pk)
-    messages.success(request, 'Dados atualizados com sucesso!')
+    if registro.flag_ativo == 'N' and ativo_antes != 'N':
+        removidos = _remover_apadrinhamentos(registro.pk)
+        messages.success(request, f'Dados atualizados. {registro} ficou inativo(a) e saiu de '
+                                  f'{removidos} apadrinhamento(s); essas crianças estão disponíveis de novo.')
+    else:
+        messages.success(request, 'Dados atualizados com sucesso!')
     return redirect('lista_madrinha_padrinho')
 
 
@@ -967,7 +1003,18 @@ def finalizar_evento(request, id_evento):
 @login_required
 @tratar_erros
 def listar_entregas(request):
-    entregas = TbEntrega.objects.all().order_by('-id_evento')
+    entregas = list(TbEntrega.objects.all().order_by('-id_evento'))
+    # A tabela de entregas guarda só os números (id) do evento, do apoiador e da
+    # criança. Buscamos os nomes de uma vez (3 consultas no total, não 3 por linha).
+    eventos = TbEvento.objects.in_bulk({e.id_evento for e in entregas})
+    apoiadores = TbMadrinhaPadrinho.objects.only('id_mad_pad', 'pnome', 'snome').in_bulk(
+        {e.id_mad_pad for e in entregas if e.id_mad_pad})
+    criancas = TbFilhosResponsavel.objects.only('id_filho', 'pnome', 'snome').in_bulk(
+        {e.id_crianca for e in entregas if e.id_crianca})
+    for entrega in entregas:
+        entrega.evento = eventos.get(entrega.id_evento)
+        entrega.apoiador = apoiadores.get(entrega.id_mad_pad)
+        entrega.crianca = criancas.get(entrega.id_crianca)
     return render(request, 'gerencias/listar_entregas.html', {'lista': entregas})
 
 
@@ -1084,6 +1131,7 @@ def anonimizar_titular(request, id_mad_pad):
         titular.flag_anonimo, titular.flag_ativo = 'S', 'N'
         titular.atualizacao_cad = timezone.now()
         titular.save()  # o save() zera o cpf_hash automaticamente
+        _remover_apadrinhamentos(titular.pk)
         TbEntrega.objects.filter(id_mad_pad=id_mad_pad).update(
             endereco="Endereço Anonimizado (LGPD)",
             bairro="Anonimizado",

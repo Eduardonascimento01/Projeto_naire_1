@@ -552,3 +552,101 @@ class JavascriptDosTemplatesTests(TestCase):
             if re.search(r"querySelector(All)?\([^)]*:visible", arq.read_text(encoding='utf-8'))
         ]
         self.assertEqual(problemas, [])
+
+
+# ----------------------------------------------------------------------
+# Família, padrinhos, funcionários, entregas e mensagens
+# ----------------------------------------------------------------------
+class SituacaoEmCascataTests(BaseLogado):
+    def _familia(self):
+        resp = criar_responsavel()
+        filhos = [TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome=n, flag_ativo='S') for n in ('A', 'B')]
+        return resp, filhos
+
+    def test_desativar_responsavel_desativa_as_criancas(self):
+        resp, filhos = self._familia()
+        self.client.post(reverse('desativar_responsavel', args=[resp.pk]))
+        resp.refresh_from_db()
+        self.assertEqual(resp.flag_ativo, 'N')
+        self.assertEqual(set(TbFilhosResponsavel.objects.values_list('flag_ativo', flat=True)), {'N'})
+
+    def test_reativar_responsavel_reativa_as_criancas(self):
+        resp, filhos = self._familia()
+        self.client.post(reverse('desativar_responsavel', args=[resp.pk]))
+        self.client.post(reverse('reativar_responsavel', args=[resp.pk]))
+        self.assertEqual(set(TbFilhosResponsavel.objects.values_list('flag_ativo', flat=True)), {'S'})
+
+    def test_desativar_pelo_formulario_de_edicao_tambem_desativa_as_criancas(self):
+        resp, filhos = self._familia()
+        self.client.post(reverse('atualiza_responsavel'), {
+            'id_responsavel': resp.pk, 'pnome': 'Maria', 'cpf': '***', 'bairro': 'B',
+            'cidade': 'C', 'estado': 'SP', 'ativo': 'N',
+        })
+        self.assertFalse(TbFilhosResponsavel.objects.filter(flag_ativo='S').exists())
+
+    def test_padrinho_inativo_sai_dos_apadrinhamentos(self):
+        resp, filhos = self._familia()
+        mp = TbMadrinhaPadrinho.objects.create(pnome='Pad', flag_ativo='S')
+        outro = TbMadrinhaPadrinho.objects.create(pnome='Outro', flag_ativo='S')
+        from gerencias.models import TbApadrinhamentoCrianca
+        for f in filhos:
+            TbApadrinhamentoCrianca.objects.create(id_mad_pad=mp, id_filho=f)
+        TbApadrinhamentoCrianca.objects.create(id_mad_pad=outro, id_filho=filhos[0])
+
+        # Editar sem mudar a situação não mexe nos apadrinhamentos
+        dados = {'pnome': 'Pad', 'cpf': '', 'flag_ativo': 'S'}
+        self.client.post(reverse('atualiza_madrinha_padrinho', args=[mp.pk]), dados)
+        self.assertEqual(TbApadrinhamentoCrianca.objects.filter(id_mad_pad=mp).count(), 2)
+
+        resposta = self.client.post(reverse('atualiza_madrinha_padrinho', args=[mp.pk]),
+                                    dict(dados, flag_ativo='N'), follow=True)
+        self.assertFalse(TbApadrinhamentoCrianca.objects.filter(id_mad_pad=mp).exists())
+        self.assertEqual(TbApadrinhamentoCrianca.objects.filter(id_mad_pad=outro).count(), 1)  # o outro fica
+        self.assertContains(resposta, 'saiu de 2 apadrinhamento(s)')
+
+    def test_padrinho_anonimizado_sai_dos_apadrinhamentos(self):
+        self.dar_permissao_lgpd()
+        resp, filhos = self._familia()
+        mp = TbMadrinhaPadrinho.objects.create(pnome='Pad', flag_ativo='S')
+        from gerencias.models import TbApadrinhamentoCrianca
+        TbApadrinhamentoCrianca.objects.create(id_mad_pad=mp, id_filho=filhos[0])
+        self.client.post(reverse('anonimizar_titular', args=[mp.pk]))
+        self.assertFalse(TbApadrinhamentoCrianca.objects.exists())
+
+
+class FuncionariosStatusTests(BaseLogado):
+    def test_interruptor_ligado_e_desativacao_de_verdade(self):
+        tipo = TbTipoFuncionario.objects.create(descricao='V')
+        func = TbFuncionario.objects.create(id_tipo=tipo, pnome='F', snome='G', cpf=CPF_A,
+                                            endereco='R', bairro='B', cidade='C', estado='SP', flag_ativo='S')
+        pagina = self.client.get(reverse('lista_funcionarios')).content.decode()
+        self.assertRegex(pagina, r'class="form-check-input status-toggle"[^>]*\bchecked\b')
+        resposta = self.client.post(reverse('desativa_funcionario', args=[func.pk]), follow=True)
+        func.refresh_from_db()
+        self.assertEqual(func.flag_ativo, 'N')
+        self.assertContains(resposta, 'foi desativado')
+
+
+class EntregasComNomesTests(BaseLogado):
+    def test_entregas_mostram_nomes_e_data_do_evento(self):
+        resp = criar_responsavel()
+        filho = TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='Zeca', snome='Silva', flag_ativo='S')
+        mp = TbMadrinhaPadrinho.objects.create(pnome='Carla', snome='Prado', flag_ativo='S')
+        ev = TbEvento.objects.create(nome='Natal Solidário', data_evento='20/12/2026', endereco='Salão da ONG')
+        TbEntrega.objects.create(id_evento=ev.pk, id_mad_pad=mp.pk, id_crianca=filho.pk,
+                                 endereco='Salão da ONG', bairro='Centro', cidade='Mogi', estado='SP')
+        pagina = self.client.get(reverse('listar_entregas')).content.decode()
+        for texto in ('Natal Solidário', 'Carla Prado', 'Zeca Silva', '20/12/2026', '📍 LOCAL'):
+            self.assertIn(texto, pagina)
+        self.assertNotIn('ID: ', pagina)
+        self.assertNotIn('DATA CHEGADA', pagina)
+
+
+class MensagensTests(BaseLogado):
+    def test_erro_de_validacao_aparece_para_o_usuario(self):
+        """Antes as mensagens eram criadas, mas nenhuma página as exibia."""
+        resposta = self.client.post(reverse('insere_novo_responsavel'), {
+            'pnome': 'Ana', 'cpf': '123.456.789-00', 'bairro': 'B', 'cidade': 'C', 'estado': 'SP',
+        }, follow=True)
+        self.assertContains(resposta, 'CPF inválido')
+        self.assertContains(resposta, 'alert-danger')

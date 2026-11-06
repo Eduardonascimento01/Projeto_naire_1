@@ -232,6 +232,18 @@
         </nav>
         </header>
         <main>
+        {% if messages %}
+            <!-- Avisos do sistema (sucesso, erro de validação...). Antes eles eram
+                 gerados nas views mas nenhuma página os mostrava. -->
+            <div class="naire-mensagens">
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show shadow-sm" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
         {% block container %}{% endblock%}
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
