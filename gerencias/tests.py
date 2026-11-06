@@ -73,7 +73,7 @@ class CpfUtilsTests(TestCase):
 class CadastroApareceNaListaTests(BaseLogado):
     def test_responsavel_novo_tem_flags_e_aparece_em_nao_validados(self):
         self.client.post(reverse('insere_novo_responsavel'), {
-            'pnome': 'Ana', 'snome': 'Souza', 'cpf': '529.982.247-25',
+            'pnome': 'Ana', 'snome': 'Souza', 'cpf': '529.982.247-25', 'endereco': 'Rua A, 1',
             'dt_nasc': '1990-05-10', 'bairro': 'B', 'cidade': 'C', 'estado': 'SP',
         })
         resp = TbCadastroResponsavel.objects.get()
@@ -648,8 +648,8 @@ class MensagensTests(BaseLogado):
         resposta = self.client.post(reverse('insere_novo_responsavel'), {
             'pnome': 'Ana', 'cpf': '123.456.789-00', 'bairro': 'B', 'cidade': 'C', 'estado': 'SP',
         }, follow=True)
-        self.assertContains(resposta, 'CPF inválido')
-        self.assertContains(resposta, 'alert-danger')
+        self.assertContains(resposta, 'CPF inválido', status_code=400)
+        self.assertContains(resposta, 'alert-danger', status_code=400)
 
 
 class ApadrinhamentoAoDesativarCriancaTests(BaseLogado):
@@ -1003,3 +1003,90 @@ class InicioELoginTests(TestCase):
         self.assertNotIn('FUNCIONÁRIOS', pagina)
         self.assertIn('não tem acesso às funções', pagina)
         self.assertIn(reverse('logout'), pagina)               # mas consegue sair
+
+
+# ----------------------------------------------------------------------
+# Cadastro de família com crianças ("+ 1 filho")
+# ----------------------------------------------------------------------
+class FamiliaComCriancasTests(BaseLogado):
+    def familia(self, **extra):
+        d = {'pnome': 'Maria', 'snome': 'Souza', 'cpf': '529.982.247-25', 'dt_nasc': '1988-03-15',
+             'resp_trabalha': 'S', 'flag_conjuge': 'N', 'conjuge_trabalha': 'N',
+             'endereco': 'Rua das Flores, 10', 'complemento': '', 'bairro': 'Centro',
+             'cidade': 'Mogi', 'estado': 'SP', 'obs': 'Teste'}
+        d.update(extra)
+        return d
+
+    def filho(self, n, **extra):
+        d = {'pnome': f'Filho{n}', 'snome': 'Souza', 'dt_nasc': '10/05/2018', 'cpf': '',
+             'sexo': 'M', 'roupa': '8', 'sapato': '28', 'outra_ong': 'N'}
+        d.update(extra)
+        return {f'filho-{n}-{k}': v for k, v in d.items()}
+
+    def enviar(self, *blocos, **extra):
+        dados = self.familia(**extra)
+        for b in blocos:
+            dados.update(b)
+        return self.client.post(reverse('insere_novo_responsavel'), dados, follow=True)
+
+    def test_formulario_tem_secao_de_criancas_e_botao_mais_um(self):
+        pagina = self.client.get(reverse('novo_responsavel')).content.decode()
+        self.assertIn('Crianças da família', pagina)
+        self.assertIn('id="adicionarFilho"', pagina)
+        self.assertIn('+ 1 filho', pagina)
+        self.assertIn('id="moldeFilho"', pagina)          # molde do bloco para o "+ 1 filho"
+
+    def test_familia_com_tres_criancas(self):
+        resposta = self.enviar(self.filho(0), self.filho(1, pnome='Ana', sexo='F', cpf=CPF_B),
+                               self.filho(4, pnome='Caio', sapato=''))   # bloco 2 e 3 foram removidos
+        self.assertContains(resposta, 'cadastrada com 3 criança(s)')
+        resp = TbCadastroResponsavel.objects.get()
+        filhos = list(TbFilhosResponsavel.objects.filter(id_responsavel=resp).order_by('id_filho'))
+        self.assertEqual([f.pnome for f in filhos], ['Filho0', 'Ana', 'Caio'])
+        ana = filhos[1]
+        self.assertEqual((ana.sexo, ana.cpf, ana.data_nascimento, ana.numero_sapato, ana.flag_ativo),
+                         ('F', CPF_B, '10/05/2018', 28, 'S'))
+        self.assertIsNone(filhos[2].numero_sapato)
+        self.assertEqual(resp.data_nascimento, '15/03/1988')
+
+    def test_familia_sem_criancas_tambem_pode(self):
+        self.assertContains(self.enviar(), 'cadastrada com 0 criança(s)')
+        self.assertEqual(TbCadastroResponsavel.objects.count(), 1)
+
+    def test_erro_em_uma_crianca_nao_grava_nada_e_volta_tudo_preenchido(self):
+        resposta = self.enviar(self.filho(0, pnome='Lia'), self.filho(1, pnome='Teo', dt_nasc='31/02/2019'))
+        self.assertEqual(resposta.status_code, 400)
+        html = resposta.content.decode()
+        self.assertIn('Data inválida', html)
+        self.assertIn('value="Lia"', html)                 # crianças voltam preenchidas
+        self.assertIn('value="Teo"', html)
+        self.assertIn('value="Maria"', html)               # e o responsável também
+        self.assertFalse(TbCadastroResponsavel.objects.exists())   # nada gravado pela metade
+        self.assertFalse(TbFilhosResponsavel.objects.exists())
+
+    def test_validacoes_das_criancas(self):
+        resposta = self.enviar(
+            self.filho(0, pnome='', sexo=''),
+            self.filho(1, cpf='123.456.789-00'),
+            self.filho(2, cpf=CPF_B), self.filho(3, cpf=CPF_B),       # mesmo CPF duas vezes
+            self.filho(5, dt_nasc='01/01/2999', sapato='trinta'),
+        )
+        html = resposta.content.decode()
+        for aviso in ('Informe o nome da criança.', 'Escolha o sexo.', 'CPF inválido',
+                      'É o mesmo CPF da criança 3', 'A data não pode ser no futuro', 'Use só números'):
+            self.assertIn(aviso, html)
+        self.assertFalse(TbFilhosResponsavel.objects.exists())
+
+    def test_cpf_de_crianca_ja_cadastrada_e_recusado(self):
+        outra = criar_responsavel(cpf=CPF_C)
+        TbFilhosResponsavel.objects.create(id_responsavel=outra, pnome='X', cpf=CPF_B, flag_ativo='S')
+        resposta = self.enviar(self.filho(0, cpf=CPF_B))
+        self.assertContains(resposta, 'Já existe uma criança cadastrada com este CPF', status_code=400)
+        self.assertEqual(TbCadastroResponsavel.objects.count(), 1)   # só a família que já existia
+
+    def test_responsavel_com_campos_vazios_e_avisado_no_campo(self):
+        resposta = self.enviar(self.filho(0), endereco='', bairro='', dt_nasc='')
+        html = resposta.content.decode()
+        for aviso in ('Informe o endereço.', 'Informe o bairro.', 'Informe a data de nascimento.'):
+            self.assertIn(aviso, html)
+        self.assertEqual(resposta.status_code, 400)

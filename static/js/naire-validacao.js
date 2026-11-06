@@ -5,13 +5,16 @@
 
    Como usar no HTML:
      - campos obrigatórios: required  +  data-msg-obrigatorio="Texto do aviso"
-     - regras extras:       data-validar="cpf | telefone | usuario | senha | senha2"
+     - regras extras:       data-validar="cpf | telefone | usuario | senha | senha2 | data | inteiro"
      - logo depois do campo: <div class="invalid-feedback">...</div>
      - "Exibir senha":      <input type="checkbox" data-exibir-senha>
      - conferir se o login já existe: data-url-usuario="..." no <form>
    No JavaScript da página:
      NaireValidacao.ativar(form)          -> liga os avisos
      NaireValidacao.validarTudo(form)     -> true se tudo certo (senão foca o 1º erro)
+
+   Os avisos funcionam também em campos criados depois (ex.: o botão "+ 1 filho"):
+   o formulário "escuta" os eventos e descobre de qual campo eles vieram.
 
    O servidor confere tudo de novo: isto só ajuda a pessoa a preencher certo.
    ========================================================================== */
@@ -55,6 +58,15 @@
             case 'senha2':
                 var senha = form.querySelector('[data-validar="senha"]');
                 return senha && campo.value === senha.value ? '' : 'As senhas não são iguais.';
+            case 'data':
+                var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor);
+                if (!m) return 'Use o formato dd/mm/aaaa.';
+                var d = new Date(+m[3], +m[2] - 1, +m[1]);
+                if (d.getDate() !== +m[1] || d.getMonth() !== +m[2] - 1) return 'Data inválida.';
+                if (d > new Date()) return 'A data não pode ser no futuro.';
+                return '';
+            case 'inteiro':
+                return /^\d{1,3}$/.test(valor) ? '' : 'Use só números (ex.: 28).';
         }
         return '';
     }
@@ -84,68 +96,75 @@
             .catch(function () {});  // sem resposta: o servidor confere de novo ao enviar
     }
 
-    function ativar(form) {
+    function ehCampo(el, form) {
+        return el && el.form === form && (el.required || el.dataset.validar !== undefined) &&
+               /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+    }
+
+    function marcarErrosDoServidor(raiz) {
         // Erros que vieram do servidor: guarda a mensagem até a pessoa mudar o valor.
-        form.querySelectorAll('.is-invalid').forEach(function (campo) {
+        raiz.querySelectorAll('.is-invalid').forEach(function (campo) {
             campo.dataset.tocado = '1';
             campo.dataset.valorServidor = campo.value;
             var aviso = campo.parentElement.querySelector('.invalid-feedback');
             if (aviso) campo.dataset.erroServidor = aviso.textContent.trim();
         });
+    }
 
-        // Clique no botão de enviar: o campo perde o foco ANTES do clique terminar.
-        // Se o aviso aparecesse nessa hora, ele empurraria o botão para baixo e o
-        // clique se perderia (era preciso clicar duas vezes). Nesse caso o aviso
-        // fica para o envio, que confere todos os campos logo em seguida.
-        form.querySelectorAll('[type="submit"]').forEach(function (botao) {
-            botao.addEventListener('pointerdown', function () {
-                form._clicandoEnviar = true;
-                setTimeout(function () { form._clicandoEnviar = false; }, 600);
-            });
+    function ativar(form) {
+        marcarErrosDoServidor(form);
+
+        // Clique num BOTÃO do formulário ("Enviar", "+ 1 filho"...): o campo perde o
+        // foco ANTES do clique terminar. Se o aviso aparecesse nessa hora, ele
+        // empurraria o botão para baixo e o clique se perderia (era preciso clicar
+        // duas vezes). Nesse caso o aviso espera: o envio confere tudo de novo.
+        form.addEventListener('pointerdown', function (e) {
+            var botao = e.target.closest && e.target.closest('button, [type="submit"]');
+            if (botao && form.contains(botao)) {
+                form._clicandoBotao = true;
+                setTimeout(function () { form._clicandoBotao = false; }, 600);
+            }
         });
 
-        // Avisa ao SAIR do campo; depois disso, atualiza a cada tecla.
-        campos(form).forEach(function (campo) {
-            campo.addEventListener('blur', function (e) {
-                campo.dataset.tocado = '1';
-                var indoParaEnviar = e.relatedTarget && e.relatedTarget.type === 'submit' && e.relatedTarget.form === form;
-                if (form._clicandoEnviar || indoParaEnviar) return;
-                mostrar(campo);
-            });
-            var evento = campo.tagName === 'SELECT' ? 'change' : 'input';
-            campo.addEventListener(evento, function () {
+        // Avisa ao SAIR do campo (focusout "sobe" até o formulário, por isso
+        // funciona também em campos criados depois).
+        form.addEventListener('focusout', function (e) {
+            var campo = e.target;
+            if (!ehCampo(campo, form)) return;
+            campo.dataset.tocado = '1';
+            var indoParaBotao = e.relatedTarget && e.relatedTarget.tagName === 'BUTTON' && form.contains(e.relatedTarget);
+            if (form._clicandoBotao || indoParaBotao) return;
+            mostrar(campo);
+            if (campo.dataset.validar === 'usuario') conferirUsuario(form, campo);
+        });
+
+        // Depois de "tocado", atualiza a cada tecla (ou a cada escolha, nos selects).
+        function aoMudar(e) {
+            var campo = e.target;
+            if (ehCampo(campo, form)) {
                 if (campo.tagName === 'SELECT') campo.dataset.tocado = '1';
                 if (campo.dataset.tocado) mostrar(campo);
-            });
-        });
-
-        // Mudou a senha: a confirmação precisa ser conferida de novo.
-        var senha = form.querySelector('[data-validar="senha"]');
-        var senha2 = form.querySelector('[data-validar="senha2"]');
-        if (senha && senha2) {
-            senha.addEventListener('input', function () { if (senha2.dataset.tocado) mostrar(senha2); });
+                if (campo.dataset.validar === 'usuario') {
+                    clearTimeout(form._esperaUsuario);
+                    form._esperaUsuario = setTimeout(function () { conferirUsuario(form, campo); }, 400);
+                }
+            }
+            // Mudou a senha: a confirmação precisa ser conferida de novo.
+            if (campo.dataset && campo.dataset.validar === 'senha') {
+                var senha2 = form.querySelector('[data-validar="senha2"]');
+                if (senha2 && senha2.dataset.tocado) mostrar(senha2);
+            }
         }
-
-        // Usuário: confere no servidor se já existe (espera a pessoa parar de digitar).
-        var usuario = form.querySelector('[data-validar="usuario"]');
-        if (usuario) {
-            var espera;
-            usuario.addEventListener('input', function () {
-                clearTimeout(espera);
-                espera = setTimeout(function () { conferirUsuario(form, usuario); }, 400);
-            });
-            usuario.addEventListener('blur', function () { conferirUsuario(form, usuario); });
-        }
+        form.addEventListener('input', aoMudar);
+        form.addEventListener('change', aoMudar);
 
         // "Exibir senha": mostra/esconde todas as senhas do formulário.
-        var exibir = form.querySelector('[data-exibir-senha]');
-        if (exibir) {
-            exibir.addEventListener('change', function () {
-                form.querySelectorAll('[data-validar="senha"], [data-validar="senha2"]').forEach(function (c) {
-                    c.type = exibir.checked ? 'text' : 'password';
-                });
+        form.addEventListener('change', function (e) {
+            if (!e.target.matches || !e.target.matches('[data-exibir-senha]')) return;
+            form.querySelectorAll('[data-validar="senha"], [data-validar="senha2"]').forEach(function (c) {
+                c.type = e.target.checked ? 'text' : 'password';
             });
-        }
+        });
     }
 
     function validarTudo(form) {

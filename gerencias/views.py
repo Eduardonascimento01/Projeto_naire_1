@@ -694,51 +694,158 @@ def trocar_senha_funcionario(request, id_funcionario):
 # ==========================================
 # BLOCO RESPONSÁVEL (FAMÍLIAS)
 # ==========================================
+# Campos obrigatórios do cadastro de família (os mesmos marcados no formulário).
+CAMPOS_OBRIGATORIOS_RESPONSAVEL = {
+    'pnome': 'Informe o primeiro nome.',
+    'snome': 'Informe o sobrenome.',
+    'dt_nasc': 'Informe a data de nascimento.',
+    'endereco': 'Informe o endereço.',
+    'bairro': 'Informe o bairro.',
+    'cidade': 'Informe a cidade.',
+    'estado': 'Escolha o estado.',
+}
+CAMPOS_OBRIGATORIOS_FILHO = {
+    'pnome': 'Informe o nome da criança.',
+    'snome': 'Informe o sobrenome da criança.',
+    'dt_nasc': 'Informe a data de nascimento.',
+    'sexo': 'Escolha o sexo.',
+}
+CAMPOS_FILHO = ('pnome', 'snome', 'dt_nasc', 'cpf', 'sexo', 'roupa', 'sapato', 'outra_ong')
+PADRAO_CAMPO_FILHO = re.compile(r'^filho-(\d+)-\w+$')
+
+
+def _validar_data_nascimento(texto):
+    """Aceita dd/mm/aaaa ou aaaa-mm-dd. Devolve (data em dd/mm/aaaa, mensagem de erro ou None)."""
+    normal = _normalizar_data(texto)
+    data = _parse_data_br(normal)
+    if data is None:
+        return normal, 'Data inválida. Use dd/mm/aaaa.'
+    if data.date() > date.today():
+        return normal, 'A data não pode ser no futuro.'
+    return normal, None
+
+
+def _ler_filhos_do_formulario(request):
+    """
+    Lê as crianças do cadastro de família. Cada bloco do formulário manda seus
+    campos com um número: filho-0-pnome, filho-0-cpf, filho-3-pnome...
+    (números de blocos removidos simplesmente não aparecem).
+    Devolve uma lista de dicionários, na ordem dos blocos, com os erros de cada um.
+    """
+    indices = sorted({int(PADRAO_CAMPO_FILHO.match(k).group(1)) for k in request.POST if PADRAO_CAMPO_FILHO.match(k)})
+    filhos, cpfs_vistos = [], {}
+    for n in indices:
+        f = {campo: (request.POST.get(f'filho-{n}-{campo}') or '').strip() for campo in CAMPOS_FILHO}
+        erros = {c: msg for c, msg in CAMPOS_OBRIGATORIOS_FILHO.items() if not f[c]}
+        if f['dt_nasc'] and 'dt_nasc' not in erros:
+            f['dt_nasc'], erro = _validar_data_nascimento(f['dt_nasc'])
+            if erro:
+                erros['dt_nasc'] = erro
+        if f['sexo'] and f['sexo'] not in ('M', 'F'):
+            erros['sexo'] = 'Escolha o sexo.'
+        if f['sapato'] and not (f['sapato'].isdigit() and len(f['sapato']) <= 3):
+            erros['sapato'] = 'Use só números (ex.: 28).'
+        cpf = limpar_cpf(f['cpf'])
+        if cpf:
+            if not cpf_valido(cpf):
+                erros['cpf'] = 'CPF inválido. Confira os números.'
+            elif cpf in cpfs_vistos:
+                erros['cpf'] = f'É o mesmo CPF da criança {cpfs_vistos[cpf]} deste cadastro.'
+            elif _cpf_duplicado(TbFilhosResponsavel, cpf):
+                erros['cpf'] = 'Já existe uma criança cadastrada com este CPF.'
+            cpfs_vistos.setdefault(cpf, len(filhos) + 1)
+        f['cpf_limpo'] = cpf
+        f['erros'] = erros
+        filhos.append(f)
+    return filhos
+
+
+def _tela_novo_responsavel(request, form=None, erros=None, filhos=None, status=200):
+    return render(request, 'gerencias/novo_responsavel.html', {
+        'form': form or {}, 'erros': erros or {}, 'filhos': filhos or [],
+    }, status=status)
+
+
 @login_required
 def novo_responsavel(request):
-    return render(request, 'gerencias/novo_responsavel.html')
+    return _tela_novo_responsavel(request)
 
 
 @login_required
 @tratar_erros
 def insere_novo_responsavel(request):
+    """Cadastra a família: o responsável e as crianças, tudo junto."""
     if request.method != 'POST':
-        return render(request, 'gerencias/novo_responsavel.html')
+        return redirect('novo_responsavel')
 
+    dados = {k: (v or '').strip() for k, v in request.POST.items()
+             if k != 'csrfmiddlewaretoken' and not k.startswith('filho-')}
+    erros = {c: msg for c, msg in CAMPOS_OBRIGATORIOS_RESPONSAVEL.items() if not dados.get(c)}
     cpf, erro = _ler_cpf(request, obrigatorio=True)
     if erro:
-        messages.error(request, erro)
-        return redirect('novo_responsavel')
-    if _cpf_duplicado(TbCadastroResponsavel, cpf):
-        messages.error(request, 'Já existe um responsável cadastrado com este CPF.')
-        return redirect('novo_responsavel')
+        erros['cpf'] = erro
+    elif _cpf_duplicado(TbCadastroResponsavel, cpf):
+        erros['cpf'] = 'Já existe um responsável cadastrado com este CPF.'
+    data_nascimento = ''
+    if dados.get('dt_nasc'):
+        data_nascimento, erro = _validar_data_nascimento(dados['dt_nasc'])
+        if erro:
+            erros['dt_nasc'] = erro
 
-    novo = _criar_com_cpf_unico(
-        TbCadastroResponsavel,
-        id_usuario_cad_id=request.user.id,
-        pnome=request.POST.get('pnome'),
-        snome=request.POST.get('snome'),
-        cpf=cpf,
-        data_nascimento=_normalizar_data(request.POST.get('dt_nasc')),
-        flag_responsavel_trabalha=request.POST.get('resp_trabalha'),
-        flag_conjuge=request.POST.get('flag_conjuge'),
-        flag_conjuge_trabalha=request.POST.get('conjuge_trabalha'),
-        endereco=request.POST.get('endereco'),
-        complemento=request.POST.get('complemento'),
-        bairro=request.POST.get('bairro'),
-        cidade=request.POST.get('cidade'),
-        estado=request.POST.get('estado'),
-        observacoes=request.POST.get('obs'),
-        data_cadastro=timezone.now(),
-        # Explícitos de propósito: sem eles o ORM mandaria NULL e o
-        # cadastro sumiria de todas as listas.
-        flag_ativo='S',
-        flag_validado='N',
-    )
-    if novo is None:
-        messages.error(request, 'Já existe um responsável cadastrado com este CPF.')
-        return redirect('novo_responsavel')
-    messages.success(request, 'Responsável cadastrado com sucesso. Ele aparece em "não validados" até ser validado.')
+    filhos = _ler_filhos_do_formulario(request)
+    if erros or any(f['erros'] for f in filhos):
+        messages.error(request, 'Confira os campos destacados em vermelho.')
+        return _tela_novo_responsavel(request, dados, erros, filhos, status=400)
+
+    agora = timezone.now()
+    try:
+        # Responsável e crianças juntos: se algo falhar, nada é gravado
+        # (nada de família pela metade no banco).
+        with transaction.atomic():
+            responsavel = TbCadastroResponsavel.objects.create(
+                id_usuario_cad_id=request.user.id,
+                pnome=dados['pnome'],
+                snome=dados['snome'],
+                cpf=cpf,
+                data_nascimento=data_nascimento,
+                flag_responsavel_trabalha=dados.get('resp_trabalha') or 'N',
+                flag_conjuge=dados.get('flag_conjuge') or 'N',
+                flag_conjuge_trabalha=dados.get('conjuge_trabalha') or 'N',
+                endereco=dados['endereco'],
+                complemento=dados.get('complemento'),
+                bairro=dados['bairro'],
+                cidade=dados['cidade'],
+                estado=dados['estado'],
+                observacoes=dados.get('obs'),
+                data_cadastro=agora,
+                # Explícitos de propósito: sem eles o ORM mandaria NULL e o
+                # cadastro sumiria de todas as listas.
+                flag_ativo='S',
+                flag_validado='N',
+            )
+            for f in filhos:
+                TbFilhosResponsavel.objects.create(
+                    id_responsavel=responsavel,
+                    id_usuario_cad_id=request.user.id,
+                    pnome=f['pnome'],
+                    snome=f['snome'],
+                    data_nascimento=f['dt_nasc'],
+                    cpf=f['cpf_limpo'] or None,
+                    sexo=f['sexo'],
+                    numero_roupa=f['roupa'] or None,
+                    numero_sapato=int(f['sapato']) if f['sapato'] else None,
+                    cadastro_outra_ong='S' if f['outra_ong'] == 'S' else 'N',
+                    data_cadastro=agora,
+                    flag_ativo='S',
+                )
+    except IntegrityError:
+        # Raro: outra pessoa cadastrou um destes CPFs no mesmo instante.
+        messages.error(request, 'Um dos CPFs acabou de ser cadastrado por outra pessoa. Confira e tente de novo.')
+        return _tela_novo_responsavel(request, dados, {}, filhos, status=400)
+
+    _registrar_auditoria(request, 'CADASTRO_FAMILIA', f'/resp/{responsavel.pk}')
+    messages.success(request, f'Família de {responsavel} cadastrada com {len(filhos)} criança(s). '
+                              'Ela aparece em "não validados" até ser validada.')
     return redirect('lista_responsavel_nval')
 
 

@@ -1,0 +1,83 @@
+{% comment %}
+Bloco de UMA criança no cadastro de família (novo_responsavel.html).
+Usado de dois jeitos:
+  - pelo servidor, para mostrar de novo as crianças quando há erro;
+  - pelo JavaScript, como molde do botão "+ 1 filho" (i = "__N__").
+Variáveis: i = número do bloco nos nomes dos campos (filho-<i>-pnome...),
+           n = número mostrado ("Criança 2"), f = valores, e = erros por campo.
+{% endcomment %}
+<div class="bloco-filho card border-0 shadow-sm mb-3" data-indice="{{ i }}">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0">
+                <i class="bi bi-emoji-smile text-primary"></i> Criança <span class="numero-filho">{{ n }}</span>
+            </h6>
+            <button type="button" class="btn btn-sm btn-outline-danger remover-filho" title="Remover esta criança do cadastro">
+                <i class="bi bi-trash"></i> Remover
+            </button>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-pnome">Primeiro nome <span class="text-danger">*</span></label>
+                <input type="text" name="filho-{{ i }}-pnome" id="filho-{{ i }}-pnome" maxlength="100" required
+                       class="form-control shadow-sm {% if e.pnome %}is-invalid{% endif %}"
+                       value="{{ f.pnome|default:'' }}" placeholder="Nome da criança"
+                       data-msg-obrigatorio="Informe o nome da criança.">
+                <div class="invalid-feedback">{{ e.pnome|default:"Informe o nome da criança." }}</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-snome">Sobrenome <span class="text-danger">*</span></label>
+                <input type="text" name="filho-{{ i }}-snome" id="filho-{{ i }}-snome" maxlength="255" required
+                       class="form-control shadow-sm sobrenome-filho {% if e.snome %}is-invalid{% endif %}"
+                       value="{{ f.snome|default:'' }}" placeholder="Sobrenome da criança"
+                       data-msg-obrigatorio="Informe o sobrenome da criança.">
+                <div class="invalid-feedback">{{ e.snome|default:"Informe o sobrenome da criança." }}</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-dt_nasc">Data de nascimento <span class="text-danger">*</span></label>
+                <input type="text" name="filho-{{ i }}-dt_nasc" id="filho-{{ i }}-dt_nasc" maxlength="10" required
+                       inputmode="numeric" class="form-control shadow-sm date-mask {% if e.dt_nasc %}is-invalid{% endif %}"
+                       value="{{ f.dt_nasc|default:'' }}" placeholder="dd/mm/aaaa"
+                       data-msg-obrigatorio="Informe a data de nascimento." data-validar="data">
+                <div class="invalid-feedback">{{ e.dt_nasc|default:"Informe a data de nascimento." }}</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-cpf">CPF <span class="text-muted fw-normal">(opcional)</span></label>
+                <input type="text" name="filho-{{ i }}-cpf" id="filho-{{ i }}-cpf" maxlength="14"
+                       inputmode="numeric" class="form-control shadow-sm cpf-mask {% if e.cpf %}is-invalid{% endif %}"
+                       value="{{ f.cpf|default:'' }}" placeholder="000.000.000-00" data-validar="cpf">
+                <div class="invalid-feedback">{{ e.cpf|default:"CPF inválido. Confira os números." }}</div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-sexo">Sexo <span class="text-danger">*</span></label>
+                <select name="filho-{{ i }}-sexo" id="filho-{{ i }}-sexo" required
+                        class="form-select shadow-sm {% if e.sexo %}is-invalid{% endif %}"
+                        data-msg-obrigatorio="Escolha o sexo.">
+                    <option value="" disabled {% if not f.sexo %}selected{% endif %}>Selecione</option>
+                    <option value="M" {% if f.sexo == 'M' %}selected{% endif %}>👨 Masculino</option>
+                    <option value="F" {% if f.sexo == 'F' %}selected{% endif %}>👩 Feminino</option>
+                </select>
+                <div class="invalid-feedback">{{ e.sexo|default:"Escolha o sexo." }}</div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-roupa">Número de roupa</label>
+                <input type="text" name="filho-{{ i }}-roupa" id="filho-{{ i }}-roupa" maxlength="15"
+                       class="form-control shadow-sm" value="{{ f.roupa|default:'' }}" placeholder="Ex: M, G, 8, 10">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-sapato">Número de sapato</label>
+                <input type="text" name="filho-{{ i }}-sapato" id="filho-{{ i }}-sapato" maxlength="3"
+                       inputmode="numeric" class="form-control shadow-sm {% if e.sapato %}is-invalid{% endif %}"
+                       value="{{ f.sapato|default:'' }}" placeholder="Ex: 28" data-validar="inteiro">
+                <div class="invalid-feedback">{{ e.sapato|default:"Use só números (ex.: 28)." }}</div>
+            </div>
+            <div class="col-md-12">
+                <label class="form-label fw-semibold" for="filho-{{ i }}-outra_ong">Cadastrada em outra ONG?</label>
+                <select name="filho-{{ i }}-outra_ong" id="filho-{{ i }}-outra_ong" class="form-select shadow-sm">
+                    <option value="N" {% if f.outra_ong != 'S' %}selected{% endif %}>❌ Não</option>
+                    <option value="S" {% if f.outra_ong == 'S' %}selected{% endif %}>⚠️ Sim</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
