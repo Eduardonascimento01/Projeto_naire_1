@@ -3,10 +3,11 @@ import os
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # Constrói os caminhos dentro do projeto, por exemplo: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Caminho explícito: funciona igual no runserver, no WSGI do servidor e nos scripts.
+load_dotenv(BASE_DIR / '.env')
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in {'true', '1', 'yes'}
 
@@ -33,6 +34,15 @@ ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
+]
+
+# Endereços https:// de onde formulários podem ser enviados (exigido pelo
+# Django 4 quando o site é acessado por HTTPS). Ex.:
+# DJANGO_CSRF_TRUSTED_ORIGINS=https://seuusuario.pythonanywhere.com
+CSRF_TRUSTED_ORIGINS = [
+    origem.strip()
+    for origem in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origem.strip()
 ]
 
 # Definição das aplicações instaladas no projeto
@@ -76,23 +86,40 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'setup.wsgi.application'
 
-# Configuração do Banco de Dados (MySQL) blindada contra credenciais padrão
-DB_USER = os.environ.get('DB_USER')
-DB_PASSWORD = os.environ.get('DB_PASSWORD')
+# Configuração do Banco de Dados
+# DB_ENGINE=mysql (padrão): o banco real da ONG.
+# DB_ENGINE=sqlite: banco de DEMONSTRAÇÃO num arquivo (ex.: PythonAnywhere
+#   gratuito). Use só com dados fictícios. As tabelas são criadas com
+#   `python manage.py criar_tabelas_demo`.
+DB_ENGINE = os.environ.get('DB_ENGINE', 'mysql').strip().lower()
 
-if not DEBUG and (DB_USER in [None, 'root', ''] or DB_PASSWORD in [None, '1234', '']):
-    raise ImproperlyConfigured('CRÍTICO: Não utilize root, senhas em branco ou padrões genéricos em produção.')
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'bd_naire2'),
-        'USER': DB_USER or 'root', # Aceita root apenas localmente (DEBUG=True)
-        'PASSWORD': DB_PASSWORD or '', 
-        'HOST': os.environ.get('DB_HOST', 'localhost'),  # ou o IP do servidor
-        'PORT': os.environ.get('DB_PORT', '3306'),
+if DB_ENGINE == 'sqlite':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.environ.get('DB_SQLITE_PATH') or str(BASE_DIR / 'demo.sqlite3'),
+        }
     }
-}
+elif DB_ENGINE == 'mysql':
+    # MySQL blindado contra credenciais padrão
+    DB_USER = os.environ.get('DB_USER')
+    DB_PASSWORD = os.environ.get('DB_PASSWORD')
+
+    if not DEBUG and (DB_USER in [None, 'root', ''] or DB_PASSWORD in [None, '1234', '']):
+        raise ImproperlyConfigured('CRÍTICO: Não utilize root, senhas em branco ou padrões genéricos em produção.')
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get('DB_NAME', 'bd_naire2'),
+            'USER': DB_USER or 'root', # Aceita root apenas localmente (DEBUG=True)
+            'PASSWORD': DB_PASSWORD or '',
+            'HOST': os.environ.get('DB_HOST', 'localhost'),  # ou o IP do servidor
+            'PORT': os.environ.get('DB_PORT', '3306'),
+        }
+    }
+else:
+    raise ImproperlyConfigured("DB_ENGINE deve ser 'mysql' ou 'sqlite'.")
 
 # Criptografia de senhas com Bcrypt (mantendo compatibilidade com as senhas já criadas)
 PASSWORD_HASHERS = [
@@ -148,7 +175,10 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Forçar HTTPS (HSTS) - Ativado automaticamente em produção (DEBUG=False)
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    # Em servidores que já forçam HTTPS na frente do Django (ex.: a opção
+    # "Force HTTPS" do PythonAnywhere), use DJANGO_SECURE_SSL_REDIRECT=False
+    # para evitar loop de redirecionamento.
+    SECURE_SSL_REDIRECT = os.environ.get('DJANGO_SECURE_SSL_REDIRECT', 'True').lower() in {'true', '1', 'yes'}
     SECURE_HSTS_SECONDS = 31536000  # 1 ano
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True

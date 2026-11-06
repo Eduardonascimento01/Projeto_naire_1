@@ -400,3 +400,38 @@ class PreencherCpfHashTests(TestCase):
         resp.refresh_from_db()
         self.assertEqual(resp.cpf, CPF_A)
         self.assertEqual(resp.cpf_hash, hash_cpf(CPF_A))
+
+
+# ----------------------------------------------------------------------
+# Comandos do banco de demonstração (PythonAnywhere / SQLite)
+# ----------------------------------------------------------------------
+class DemoTests(TestCase):
+    def test_popular_demo_cria_dados_validos_e_usuarios(self):
+        from io import StringIO
+        from django.core.management import call_command
+
+        saida = StringIO()
+        call_command('popular_demo', '--usuarios', 'ana', 'bruno', '--lgpd', stdout=saida)
+
+        self.assertEqual(TbCadastroResponsavel.objects.count(), 8)
+        for resp in TbCadastroResponsavel.objects.all():
+            self.assertTrue(cpf_valido(resp.cpf))
+            self.assertEqual(resp.cpf_hash, hash_cpf(resp.cpf))
+        self.assertTrue(TbFilhosResponsavel.objects.exists())
+
+        ana = User.objects.get(username='ana')
+        self.assertTrue(ana.is_staff)
+        self.assertTrue(ana.groups.filter(name=GRUPO_LGPD).exists())
+        self.assertIn('usuário: ana', saida.getvalue())
+
+        # Rodar de novo não duplica nada
+        call_command('popular_demo', stdout=StringIO())
+        self.assertEqual(TbCadastroResponsavel.objects.count(), 8)
+
+    def test_criar_tabelas_demo_nao_recria_tabelas_existentes(self):
+        from io import StringIO
+        from django.core.management import call_command
+
+        saida = StringIO()
+        call_command('criar_tabelas_demo', stdout=saida)
+        self.assertIn('0 tabela(s) criada(s)', saida.getvalue())

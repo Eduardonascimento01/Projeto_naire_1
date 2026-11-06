@@ -1,7 +1,6 @@
 from django_cryptography.fields import encrypt
 from django.db import models
 from django.conf import settings
-import mysql.connector
 
 from gerencias.cpf_utils import hash_cpf, mascarar_cpf
 
@@ -35,6 +34,10 @@ def _campo_cpf_hash():
 class Conn:
     @staticmethod
     def _get_connection():
+        # Import aqui dentro: só o criptografar_banco.py usa esta classe, então
+        # o site não precisa do mysql-connector-python instalado (economiza ~60 MB).
+        import mysql.connector
+
         db_conf = settings.DATABASES['default']
         return mysql.connector.connect(
             host=db_conf.get('HOST', 'localhost'),
