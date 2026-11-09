@@ -189,6 +189,25 @@
                                         <i class="bi bi-pencil-square"></i> Editar
                                     </button>
                                 </form>
+                                {% if entrega.flag_finalizado == 'S' %}
+                                    {% if entrega.evento.flag_finalizado != 'S' %}
+                                    <form action="{% url 'reabrir_entrega' entrega.id_entrega %}" method="POST"
+                                          class="reativar-form" data-id="{{ entrega.id_entrega }}" style="display: inline-block;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-warning btn-sm" title="Voltar a ficar pendente (finalizada por engano)">
+                                            <i class="bi bi-arrow-counterclockwise"></i> Reabrir
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                {% else %}
+                                    <form action="{% url 'finalizar_entrega' entrega.id_entrega %}" method="POST"
+                                          class="finalizar-form" data-id="{{ entrega.id_entrega }}" style="display: inline-block;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-success btn-sm" title="O presente chegou à criança">
+                                            <i class="bi bi-check-circle"></i> Finalizar
+                                        </button>
+                                    </form>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -386,7 +405,7 @@
                 
                 Swal.fire({
                     title: 'Finalizar Entrega',
-                    html: `<p>Deseja finalizar a entrega ${id}?</p>`,
+                    html: `<p>Confirma que a entrega ${id} foi feita (o presente chegou à criança)?</p>`,
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#27ae60',
@@ -405,12 +424,12 @@
                 const id = this.getAttribute('data-id');
                 
                 Swal.fire({
-                    title: 'Reativar Entrega',
-                    html: `<p>Deseja reativar a entrega ${id}?</p>`,
+                    title: 'Reabrir entrega',
+                    html: `<p>A entrega ${id} vai voltar a ficar <b>pendente</b>. Use só se ela foi finalizada por engano.</p>`,
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#f39c12',
-                    confirmButtonText: '✅ Sim, reativar',
+                    confirmButtonText: '↩️ Sim, reabrir',
                     cancelButtonText: '❌ Cancelar'
                 }).then((result) => {
                     if (result.isConfirmed) this.submit();

@@ -198,10 +198,11 @@
                                     </button>
                                 </form>
                                 
-                                <form action="{% url 'finalizar_evento' id_evento=evento.id_evento %}" 
-                                    method="POST" 
+                                {% if evento.flag_finalizado != 'S' %}
+                                <form action="{% url 'finalizar_evento' id_evento=evento.id_evento %}"
+                                    method="POST"
                                     style="display: inline-block;"
-                                    class="finalizar-form"
+                                    class="finalizar-evento-form"
                                     data-nome="{{ evento.nome }}">
                                     {% csrf_token %}
                                     <button type="submit" 
@@ -211,6 +212,7 @@
                                             <i class="bi bi-check-circle"></i> Finalizar
                                     </button>
                                 </form>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -430,6 +432,23 @@
             URL.revokeObjectURL(blob);
             
             Swal.fire({ icon: 'success', title: 'Exportado!', timer: 2000, showConfirmButton: false });
+        });
+
+        // Finalizar evento: pede confirmação, porque finaliza também as entregas dele.
+        document.querySelectorAll('.finalizar-evento-form').forEach(form => {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Finalizar evento',
+                    html: `<p>Finalizar o evento <b>${this.dataset.nome.replace(/[<>&]/g, '')}</b>?</p>
+                           <p class="small text-muted mb-0">Todas as entregas pendentes deste evento também serão finalizadas.</p>`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#27ae60',
+                    confirmButtonText: '✅ Sim, finalizar',
+                    cancelButtonText: '❌ Cancelar'
+                }).then(r => { if (r.isConfirmed) HTMLFormElement.prototype.submit.call(this); });
+            });
         });
     });
 </script>

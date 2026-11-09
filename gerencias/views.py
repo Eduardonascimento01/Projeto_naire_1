@@ -54,6 +54,19 @@ def lgpd_required(view):
     return _wrapper
 
 
+def admin_required(view):
+    """Só administrador (superusuário). Usado no que cria logins: quem cria um
+    login escolhe a senha e poderia entrar no sistema como outra pessoa."""
+    @wraps(view)
+    def _wrapper(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            logger.warning("Acesso de administrador negado a %s em %s", request.user.username, request.path)
+            messages.error(request, 'Somente um administrador pode cadastrar funcionários e criar logins.')
+            return redirect('lista_funcionarios')
+        return view(request, *args, **kwargs)
+    return _wrapper
+
+
 def tratar_erros(view):
     """
     Substitui o try/except que existia em cada view.
@@ -456,6 +469,7 @@ def lista_funcionarios(request):
 
 
 @login_required
+@admin_required
 @tratar_erros
 def novo_funcionario(request):
     return render(request, 'gerencias/novo_funcionario.html', _contexto_form_funcionario(request))
@@ -506,6 +520,7 @@ def _validar_novo_funcionario(request):
 
 
 @login_required
+@admin_required
 @somente_post
 @tratar_erros
 def insere_novo_funcionario(request):
@@ -641,6 +656,7 @@ def _tela_editar_funcionario(request, funcionario, erros_acesso=None, form_acess
         'pode_criar_admin': request.user.is_superuser,
         'login': login,
         'pode_trocar_senha': _pode_trocar_senha(request, login),
+        'pode_criar_acesso': request.user.is_superuser,
         'trocando_a_propria': login is not None and login.pk == request.user.pk,
         'erros_acesso': erros_acesso or {},
         'form_acesso': form_acesso or {},
@@ -661,6 +677,7 @@ def editar_funcionario(request, id_funcionario):
 
 
 @login_required
+@admin_required
 @somente_post
 @tratar_erros
 def criar_acesso_funcionario(request, id_funcionario):
@@ -1550,10 +1567,52 @@ def editar_evento(request, id_evento):
 @somente_post
 @tratar_erros
 def finalizar_evento(request, id_evento):
+    """Encerra o evento e, junto, todas as entregas dele que ainda estavam pendentes."""
     evento = get_object_or_404(TbEvento, id_evento=id_evento)
-    evento.flag_finalizado = 'S'
-    evento.save(update_fields=['flag_finalizado'])
+    with transaction.atomic():
+        evento.flag_finalizado = 'S'
+        evento.save(update_fields=['flag_finalizado'])
+        finalizadas = (TbEntrega.objects.filter(id_evento=evento.id_evento)
+                       .exclude(flag_finalizado='S')
+                       .update(flag_finalizado='S', data_chegada=timezone.now()))
+    texto = f'Evento "{evento.nome}" finalizado.'
+    if finalizadas:
+        texto += f' {finalizadas} entrega(s) dele também foram finalizadas.'
+    messages.success(request, texto)
     return redirect('listar_eventos')
+
+
+@login_required
+@somente_post
+@tratar_erros
+def finalizar_entrega(request, id_entrega):
+    """Marca UMA entrega como feita (o presente chegou à criança)."""
+    entrega = get_object_or_404(TbEntrega, id_entrega=id_entrega)
+    if entrega.flag_finalizado != 'S':
+        entrega.flag_finalizado = 'S'
+        entrega.data_chegada = timezone.now()
+        entrega.save(update_fields=['flag_finalizado', 'data_chegada'])
+    messages.success(request, f'Entrega {entrega.id_entrega} finalizada.')
+    return redirect('listar_entregas')
+
+
+@login_required
+@somente_post
+@tratar_erros
+def reabrir_entrega(request, id_entrega):
+    """Desfaz uma finalização feita por engano: a entrega volta a ficar pendente."""
+    entrega = get_object_or_404(TbEntrega, id_entrega=id_entrega)
+    evento = TbEvento.objects.filter(id_evento=entrega.id_evento).first()
+    if evento is not None and evento.flag_finalizado == 'S':
+        messages.error(request, f'O evento "{evento.nome}" já foi finalizado. '
+                                'Uma entrega de evento finalizado não pode voltar a ficar pendente.')
+        return redirect('listar_entregas')
+    if entrega.flag_finalizado == 'S':
+        entrega.flag_finalizado = 'N'
+        entrega.data_chegada = None
+        entrega.save(update_fields=['flag_finalizado', 'data_chegada'])
+    messages.success(request, f'Entrega {entrega.id_entrega} voltou a ficar pendente.')
+    return redirect('listar_entregas')
 
 
 @login_required

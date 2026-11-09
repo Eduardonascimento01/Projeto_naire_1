@@ -736,7 +736,7 @@ class CenarioFuncionarios(TestCase):
 
 class FuncionarioComLoginTests(CenarioFuncionarios):
     def test_membro_cadastrado_ganha_login_normal(self):
-        resposta = self.cadastrar(self.membro)
+        resposta = self.cadastrar(self.admin)
         self.assertContains(resposta, 'Login: ana.souza')
         novo = User.objects.get(username='ana.souza')
         self.assertTrue(novo.is_staff and novo.is_active)
@@ -744,26 +744,31 @@ class FuncionarioComLoginTests(CenarioFuncionarios):
         self.assertTrue(self.Link.objects.filter(usuario=novo, funcionario__pnome='Ana').exists())
         self.assertTrue(self.entra('ana.souza', self.SENHA))
 
-    def test_so_administrador_cadastra_administrador(self):
-        resposta = self.cadastrar(self.membro, tp_funcionario=self.tipos['ADMIN'].pk)
-        self.assertEqual(resposta.status_code, 400)
-        self.assertContains(resposta, 'Somente um administrador pode cadastrar outro administrador', status_code=400)
+    def test_so_administrador_cadastra_funcionario(self):
+        # Quem cadastra escolhe a senha do login: um membro poderia criar uma
+        # conta e entrar com ela. Por isso só o administrador cadastra.
+        for tipo in ('MEMBRO', 'ADMIN'):
+            resposta = self.cadastrar(self.membro, tp_funcionario=self.tipos[tipo].pk)
+            self.assertContains(resposta, 'Somente um administrador pode cadastrar funcionários e criar logins')
         self.assertFalse(User.objects.filter(username='ana.souza').exists())
         self.assertFalse(TbFuncionario.objects.exists())
 
         self.cadastrar(self.admin, tp_funcionario=self.tipos['ADMIN'].pk)
         self.assertTrue(User.objects.get(username='ana.souza').is_superuser)
 
-    def test_opcao_administrador_bloqueada_no_formulario_para_membro(self):
+    def test_membro_nao_ve_novo_funcionario(self):
         self.client.force_login(self.membro)
-        pagina = self.client.get(reverse('novo_funcionario')).content.decode()
-        self.assertRegex(pagina, r'<option value="1"\s+disabled>')
+        self.assertRedirects(self.client.get(reverse('novo_funcionario')), reverse('lista_funcionarios'))
+        pagina = self.client.get(reverse('lista_funcionarios')).content.decode()
+        self.assertNotIn(reverse('novo_funcionario'), pagina)          # nem no menu, nem no botão
+        self.assertIn('Só um administrador cadastra funcionários', pagina)
         self.client.force_login(self.admin)
         pagina = self.client.get(reverse('novo_funcionario')).content.decode()
         self.assertNotRegex(pagina, r'<option value="1"\s+disabled>')
+        self.assertIn(reverse('novo_funcionario'), self.client.get(reverse('lista_funcionarios')).content.decode())
 
     def test_erros_devolvem_o_formulario_preenchido_sem_a_senha(self):
-        resposta = self.cadastrar(self.membro, senha2='OutraSenha-99', telefone='123')
+        resposta = self.cadastrar(self.admin, senha2='OutraSenha-99', telefone='123')
         self.assertEqual(resposta.status_code, 400)
         html = resposta.content.decode()
         self.assertIn('As senhas não são iguais', html)
@@ -773,14 +778,15 @@ class FuncionarioComLoginTests(CenarioFuncionarios):
         self.assertFalse(TbFuncionario.objects.exists())
 
     def test_senha_fraca_e_usuario_repetido_sao_recusados(self):
-        resposta = self.cadastrar(self.membro, senha='12345678', senha2='12345678')
+        resposta = self.cadastrar(self.admin, senha='12345678', senha2='12345678')
         self.assertContains(resposta, 'senha', status_code=400)
-        resposta = self.cadastrar(self.membro, usuario='MEMBRO')   # já existe (sem diferenciar maiúsculas)
+        resposta = self.cadastrar(self.admin, usuario='MEMBRO')   # já existe (sem diferenciar maiúsculas)
         self.assertContains(resposta, 'já está em uso', status_code=400)
         self.assertFalse(TbFuncionario.objects.exists())
 
     def test_desativar_funcionario_bloqueia_o_login(self):
-        self.cadastrar(self.membro)
+        self.cadastrar(self.admin)
+        self.client.force_login(self.membro)
         func = TbFuncionario.objects.get()
         self.client.post(reverse('desativa_funcionario', args=[func.pk]))
         self.assertFalse(User.objects.get(username='ana.souza').is_active)
@@ -804,8 +810,9 @@ class FuncionarioComLoginTests(CenarioFuncionarios):
         self.assertTrue(User.objects.get(username='ana.souza').is_superuser)
 
     def test_membro_nao_se_promove_a_administrador(self):
-        self.cadastrar(self.membro)
+        self.cadastrar(self.admin)
         func = TbFuncionario.objects.get()
+        self.client.force_login(self.membro)
         self.client.post(reverse('atualiza_funcionario'), {
             'id_funcionario': func.pk, 'id_tipo': self.tipos['ADMIN'].pk, 'pnome': 'Ana', 'snome': 'Souza',
             'cpf': '***', 'telefone': '11987654321', 'endereco': 'R', 'bairro': 'B', 'cidade': 'C',
@@ -822,7 +829,7 @@ class FuncionarioComLoginTests(CenarioFuncionarios):
         self.assertFalse(self.client.get(url, {'usuario': 'com espaço'}).json()['valido'])
 
     def test_anonimizar_funcionario_apaga_e_bloqueia_o_login(self):
-        self.cadastrar(self.membro)
+        self.cadastrar(self.admin)
         func = TbFuncionario.objects.get()
         self.client.force_login(self.admin)
         self.client.post(reverse('anonimizar_funcionario', args=[func.pk]))
@@ -868,40 +875,48 @@ class AcessoNaEdicaoTests(CenarioFuncionarios):
 
     def test_edicao_mostra_criar_acesso_para_quem_nao_tem_login(self):
         func = self.funcionario_sem_login()
-        self.client.force_login(self.membro)
+        self.client.force_login(self.admin)
         pagina = self.client.get(reverse('editar_funcionario', args=[func.pk])).content.decode()
         self.assertIn('id="formCriarAcesso"', pagina)
         self.assertNotIn('id="formTrocarSenha"', pagina)
+        # O membro vê só o aviso, sem o formulário
+        self.client.force_login(self.membro)
+        pagina = self.client.get(reverse('editar_funcionario', args=[func.pk])).content.decode()
+        self.assertNotIn('id="formCriarAcesso"', pagina)
+        self.assertIn('Somente um administrador pode criar o acesso', pagina)
 
     def test_criar_acesso_para_funcionario_antigo(self):
         func = self.funcionario_sem_login()
-        resposta = self.criar_acesso(self.membro, func)
+        resposta = self.criar_acesso(self.admin, func)
         self.assertContains(resposta, 'Acesso criado para Beto Lima. Login: beto.lima')
         self.assertTrue(self.Link.objects.filter(funcionario=func, usuario__username='beto.lima').exists())
         self.assertTrue(self.entra('beto.lima', self.SENHA))
         # Não dá para criar um segundo acesso
-        resposta = self.criar_acesso(self.membro, func, usuario='beto.dois')
+        resposta = self.criar_acesso(self.admin, func, usuario='beto.dois')
         self.assertContains(resposta, 'já tem acesso')
         self.assertFalse(User.objects.filter(username='beto.dois').exists())
 
     def test_criar_acesso_com_erro_volta_preenchido(self):
         func = self.funcionario_sem_login()
-        resposta = self.criar_acesso(self.membro, func, senha2='Diferente-123')
+        resposta = self.criar_acesso(self.admin, func, senha2='Diferente-123')
         self.assertContains(resposta, 'As senhas não são iguais', status_code=400)
         self.assertContains(resposta, 'value="beto.lima"', status_code=400)
         self.assertNotContains(resposta, self.SENHA, status_code=400)
         self.assertFalse(User.objects.filter(username='beto.lima').exists())
 
-    def test_membro_nao_cria_acesso_de_administrador(self):
-        func = self.funcionario_sem_login(tipo='ADMIN')
-        self.criar_acesso(self.membro, func)
-        self.assertFalse(User.objects.filter(username='beto.lima').exists())
+    def test_membro_nao_cria_acesso(self):
+        for tipo in ('VOLUNTARIO', 'ADMIN'):
+            TbFuncionario.objects.all().delete()
+            func = self.funcionario_sem_login(tipo=tipo)
+            resposta = self.criar_acesso(self.membro, func)
+            self.assertContains(resposta, 'Somente um administrador pode cadastrar funcionários e criar logins')
+            self.assertFalse(User.objects.filter(username='beto.lima').exists())
         self.criar_acesso(self.admin, func)
         self.assertTrue(User.objects.get(username='beto.lima').is_superuser)
 
     def test_administrador_troca_senha_de_outra_pessoa(self):
         func = self.funcionario_sem_login()
-        self.criar_acesso(self.membro, func)
+        self.criar_acesso(self.admin, func)
         resposta = self.trocar(self.admin, func)
         self.assertContains(resposta, 'Senha de beto.lima alterada')
         self.assertTrue(self.entra('beto.lima', self.NOVA))
@@ -921,7 +936,7 @@ class AcessoNaEdicaoTests(CenarioFuncionarios):
 
     def test_cada_um_troca_a_propria_senha_e_continua_logado(self):
         func = self.funcionario_sem_login()
-        self.criar_acesso(self.membro, func)
+        self.criar_acesso(self.admin, func)
         beto = User.objects.get(username='beto.lima')
         # Sem a senha atual (ou com ela errada), não troca
         resposta = self.trocar(beto, func, senha_atual='errada')
@@ -934,7 +949,7 @@ class AcessoNaEdicaoTests(CenarioFuncionarios):
 
     def test_senha_fraca_na_troca_e_recusada(self):
         func = self.funcionario_sem_login()
-        self.criar_acesso(self.membro, func)
+        self.criar_acesso(self.admin, func)
         resposta = self.trocar(self.admin, func, senha='12345678')
         self.assertEqual(resposta.status_code, 400)
         self.assertTrue(self.entra('beto.lima', self.SENHA))
@@ -1297,3 +1312,65 @@ class RevisaoExternaTests(BaseLogado):
         for url in set(re.findall(r'class="dropdown-item" href="([^"]+)"', pagina)):
             with self.subTest(url):
                 self.assertEqual(self.client.get(url).status_code, 200)
+
+
+# ----------------------------------------------------------------------
+# Finalizar entregas: uma a uma, ou todas juntas ao finalizar o evento
+# ----------------------------------------------------------------------
+class FinalizarEntregasTests(BaseLogado):
+    def setUp(self):
+        super().setUp()
+        self.evento = TbEvento.objects.create(nome='Páscoa', data_evento='05/04/2027', endereco='Salão')
+        self.outro = TbEvento.objects.create(nome='Natal', data_evento='20/12/2027', endereco='Salão')
+        self.e1, self.e2 = [TbEntrega.objects.create(id_evento=self.evento.pk, flag_finalizado='N') for _ in range(2)]
+        self.e3 = TbEntrega.objects.create(id_evento=self.outro.pk, flag_finalizado='N')
+
+    def situacao(self, *entregas):
+        for e in entregas:
+            e.refresh_from_db()
+        return [e.flag_finalizado for e in entregas]
+
+    def test_finalizar_uma_entrega(self):
+        resposta = self.client.post(reverse('finalizar_entrega', args=[self.e1.pk]), follow=True)
+        self.assertContains(resposta, f'Entrega {self.e1.pk} finalizada')
+        self.assertEqual(self.situacao(self.e1, self.e2, self.e3), ['S', 'N', 'N'])
+        self.assertIsNotNone(self.e1.data_chegada)
+        # A lista mostra "Reabrir" para a finalizada e "Finalizar" para as outras
+        pagina = resposta.content.decode()
+        self.assertIn(reverse('reabrir_entrega', args=[self.e1.pk]), pagina)
+        self.assertIn(reverse('finalizar_entrega', args=[self.e2.pk]), pagina)
+        self.assertNotIn(reverse('finalizar_entrega', args=[self.e1.pk]), pagina)
+
+    def test_so_aceita_post(self):
+        self.client.get(reverse('finalizar_entrega', args=[self.e1.pk]))
+        self.assertEqual(self.situacao(self.e1), ['N'])
+
+    def test_reabrir_entrega_finalizada_por_engano(self):
+        self.client.post(reverse('finalizar_entrega', args=[self.e1.pk]))
+        self.client.post(reverse('reabrir_entrega', args=[self.e1.pk]))
+        self.assertEqual(self.situacao(self.e1), ['N'])
+        self.assertIsNone(self.e1.data_chegada)
+
+    def test_finalizar_evento_finaliza_todas_as_entregas_dele(self):
+        resposta = self.client.post(reverse('finalizar_evento', args=[self.evento.pk]), follow=True)
+        self.assertContains(resposta, '2 entrega(s) dele também foram finalizadas')
+        self.assertEqual(self.situacao(self.e1, self.e2, self.e3), ['S', 'S', 'N'])   # o outro evento não muda
+        self.evento.refresh_from_db()
+        self.assertEqual(self.evento.flag_finalizado, 'S')
+        # Evento finalizado: suas entregas não podem voltar a ficar pendentes
+        resposta = self.client.post(reverse('reabrir_entrega', args=[self.e1.pk]), follow=True)
+        self.assertContains(resposta, 'já foi finalizado')
+        self.assertEqual(self.situacao(self.e1), ['S'])
+        self.assertNotIn(reverse('reabrir_entrega', args=[self.e1.pk]),
+                         self.client.get(reverse('listar_entregas')).content.decode())
+        # e o botão "Finalizar" some do evento finalizado
+        self.assertNotIn(reverse('finalizar_evento', args=[self.evento.pk]),
+                         self.client.get(reverse('listar_eventos')).content.decode())
+
+    def test_entrega_ja_finalizada_mantem_a_data_de_chegada(self):
+        self.client.post(reverse('finalizar_entrega', args=[self.e1.pk]))
+        self.e1.refresh_from_db()
+        chegada = self.e1.data_chegada
+        self.client.post(reverse('finalizar_evento', args=[self.evento.pk]))
+        self.e1.refresh_from_db()
+        self.assertEqual(self.e1.data_chegada, chegada)

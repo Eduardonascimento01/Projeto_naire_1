@@ -285,6 +285,12 @@
                                 Cada pessoa pode trocar a própria senha no próprio cadastro.
                             </div>
                             {% endif %}
+                        {% elif not pode_criar_acesso %}
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                Este funcionário ainda <strong>não tem login</strong>.
+                                Somente um administrador pode criar o acesso.
+                            </div>
                         {% else %}
                             <p class="text-muted mb-3">
                                 Este funcionário ainda <strong>não tem login</strong> (foi cadastrado antes do acesso por senha).

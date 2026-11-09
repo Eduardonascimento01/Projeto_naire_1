@@ -86,5 +86,7 @@ urlpatterns = [
     path('gerencias/insere_nova_entrega/', views.insere_nova_entrega, name='insere_nova_entrega'),
     path('gerencias/atualiza_entrega/<int:id_entrega>/', views.atualiza_entrega, name='atualiza_entrega'),
     path('gerencias/editar_entrega/<int:id_entrega>/', views.editar_entrega, name='editar_entrega'),
+    path('gerencias/finalizar_entrega/<int:id_entrega>/', views.finalizar_entrega, name='finalizar_entrega'),
+    path('gerencias/reabrir_entrega/<int:id_entrega>/', views.reabrir_entrega, name='reabrir_entrega'),
 
 ]
