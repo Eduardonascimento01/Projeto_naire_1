@@ -126,7 +126,6 @@
                 <thead class="table-dark">
                     <tr>
                         <th scope="col" class="px-4">#ID</th>
-                        <th scope="col"># RESP</th> 
                         <th scope="col">👤 NOME</th>
                         <th scope="col">🎂 ANO NASC</th>
                         <th scope="col">🆔 CPF</th>
@@ -135,7 +134,6 @@
                         <th scope="col">👞 SAPATO</th>
                         <th scope="col">🏢 OUT. ONG</th>
                         <th scope="col">📅 DT CADASTRO</th>
-                        <th scope="col" class="text-center">⚙️ AÇÃO</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -143,10 +141,9 @@
                     <tr class="filho-row" 
                         data-nome="{{ filho.pnome }} {{ filho.snome }}"
                         data-sexo="{{ filho.sexo }}"
-                        data-nascimento="{{ filho.data }}"
+                        data-nascimento="{{ filho.data_nascimento|default:'' }}"
                         data-outra-ong="{{ filho.cadastro_outra_ong }}">
                         <td class="px-4 fw-bold">#{{ filho.id_filho }}</td>
-                        <td class="fw-bold text-muted">#{{ filho.id_responsavel }}</td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar-circle me-3">
@@ -155,8 +152,12 @@
                                 <div>
                                     <strong>{{ filho.pnome }} {{ filho.snome }}</strong>
                                     <br>
-                                    <small class="text-muted">
-                                        <i class="bi bi-person-badge"></i> Resp: #{{ filho.id_responsavel }}
+                                    <small>
+                                        <a href="{% url 'lista_filhos' id_responsavel=filho.id_responsavel_id %}"
+                                           class="text-muted text-decoration-none"
+                                           title="Abrir a família (editar, desativar...)">
+                                            <i class="bi bi-person-badge"></i> Resp.: {{ filho.id_responsavel }}
+                                        </a>
                                     </small>
                                 </div>
                             </div>
@@ -164,9 +165,9 @@
                         <td>
                             <i class="bi bi-calendar3 text-muted"></i>
                             <!-- SEGURANÇA: Mascaramento da data exata de nascimento (LGPD) -->
-                            **/**/{{ filho.data|date:"Y"|default:"—" }}
+                            **/**/{{ filho.data_nascimento|slice:"6:"|default:"—" }}
                             <br>
-                            <small class="text-muted idade-text" data-nasc="{{ filho.data }}"></small>
+                            <small class="text-muted idade-text" data-nasc="{{ filho.data_nascimento|default:'' }}"></small>
                         </td>
                         <td>
                             {% if filho.cpf %}
@@ -205,50 +206,13 @@
                         <td>
                             <small>
                                 <i class="bi bi-calendar-check text-muted"></i>
-                                {{ filho.data_cadastro|date:"d/m/Y H:i"|default:"—" }}
+                                {{ filho.data_cadastro|date:"m/Y"|default:"—" }}
                             </small>
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                {% if filho.flag_ativo == 'S' %}
-                                    <form action="{% url 'desativar_filho' id_responsavel=filho.id_responsavel_id %}" 
-                                        method="POST" 
-                                        style="display: inline-block;"
-                                        class="desativar-form"
-                                        data-id="{{ filho.id_filho }}"
-                                        data-nome="{{ filho.pnome }} {{ filho.snome }}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="id_filho" value="{{filho.id_filho}}">
-                                        <button type="submit" 
-                                                class="btn btn-outline-danger btn-sm desativar-btn"
-                                                data-bs-toggle="tooltip" 
-                                                title="Desativar filho">
-                                            <i class="bi bi-person-x-fill"></i> Desativar
-                                        </button>
-                                    </form>
-                                {% else %}
-                                    <form action="{% url 'reativar_filho' id_filho=filho.id_filho %}" 
-                                        method="POST" 
-                                        style="display: inline-block;"
-                                        class="reativar-form"
-                                        data-id="{{ filho.id_filho }}"
-                                        data-nome="{{ filho.pnome }} {{ filho.snome }}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="id_filho" value="{{filho.id_filho}}">
-                                        <button type="submit" 
-                                                class="btn btn-outline-success btn-sm reativar-btn"
-                                                data-bs-toggle="tooltip" 
-                                                title="Reativar filho">
-                                            <i class="bi bi-person-plus-fill"></i> Reativar
-                                        </button>
-                                    </form>
-                                {% endif %}
-                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-center py-5">
+                        <td colspan="9" class="text-center py-5">
                             <i class="bi bi-emoji-smile display-1 text-muted"></i>
                             <p class="mt-3 text-muted">Nenhum filho cadastrado ainda.</p>
                             <a href="{% url 'lista_responsavel' %}" class="btn btn-primary mt-2">
@@ -448,7 +412,10 @@
         function calcularIdade(dataNascimento) {
             if (!dataNascimento) return null;
             const hoje = new Date();
-            const nascimento = new Date(dataNascimento);
+            // O banco guarda "dd/mm/aaaa"; o Date do JavaScript não entende esse formato.
+            const p = String(dataNascimento).split('/');
+            const nascimento = p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]) : new Date(dataNascimento);
+            if (isNaN(nascimento)) return null;
             let idade = hoje.getFullYear() - nascimento.getFullYear();
             const mes = hoje.getMonth() - nascimento.getMonth();
             if (mes < 0 || (mes === 0 && hoje.getDate() < nascimento.getDate())) {
@@ -478,8 +445,8 @@
             if (outraOngValue === 'S' || outraOngValue === 'Sim') outraOng++;
             
             // Calcular e exibir idade
-            if (dataNasc) {
-                const idade = calcularIdade(dataNasc);
+            const idade = dataNasc ? calcularIdade(dataNasc) : null;
+            if (idade !== null) {
                 totalIdade += idade;
                 countIdade++;
                 

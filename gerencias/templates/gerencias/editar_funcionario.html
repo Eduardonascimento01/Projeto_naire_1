@@ -56,19 +56,23 @@
                                         <i class="bi bi-person-vcard"></i> Tipo de Funcionário
                                     </label>
                                     <select name="id_tipo" class="form-select shadow-sm">
-                                        <option value="1" {% if item.id_tipo == 1 or item.id_tipo == '1' %}selected{% endif %}>
-                                            👑 ADMIN
+                                        <option value="1" {% if item.id_tipo_id == 1 %}selected{% endif %} {% if not pode_criar_admin %}disabled{% endif %}>
+                                            👑 ADMIN{% if not pode_criar_admin %} (só um administrador pode escolher){% endif %}
                                         </option>
-                                        <option value="2" {% if item.id_tipo == 2 or item.id_tipo == '2' %}selected{% endif %}>
+                                        <option value="2" {% if item.id_tipo_id == 2 %}selected{% endif %}>
                                             👥 MEMBRO
                                         </option>
-                                        <option value="3" {% if item.id_tipo == 3 or item.id_tipo == '3' %}selected{% endif %}>
+                                        <option value="3" {% if item.id_tipo_id == 3 %}selected{% endif %}>
                                             💼 CONTRATADO
                                         </option>
-                                        <option value="4" {% if item.id_tipo == 4 or item.id_tipo == '4' %}selected{% endif %}>
+                                        <option value="4" {% if item.id_tipo_id == 4 %}selected{% endif %}>
                                             🤝 VOLUNTÁRIO
                                         </option>
                                     </select>
+                                    <small class="text-muted d-block mt-1">
+                                        <i class="bi bi-key"></i>
+                                        {% if login %}Login no sistema: <strong>{{ login.username }}</strong>{% else %}Sem login no sistema (cadastrado antes do acesso por senha).{% endif %}
+                                    </small>
                                 </div>
 
                                 <!-- Status Ativo -->
@@ -208,6 +212,135 @@
                                 </div>
                             </div>
                         </form>
+                    </div>
+                </div>
+
+                <!-- Acesso ao sistema: criar o login (se ainda não existe) ou trocar a senha.
+                     Formulários separados do formulário de dados (HTML não permite um dentro do outro). -->
+                <div class="card shadow-sm border-0 rounded-4 mt-4" id="acesso">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h4 class="mb-0">
+                            <i class="bi bi-shield-lock text-primary"></i>
+                            Acesso ao sistema
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        {% if login %}
+                            <p class="mb-3">
+                                Login: <strong>{{ login.username }}</strong>
+                                {% if login.is_active %}
+                                    <span class="badge bg-success ms-1">pode entrar no sistema</span>
+                                {% else %}
+                                    <span class="badge bg-secondary ms-1">bloqueado (funcionário inativo)</span>
+                                {% endif %}
+                                {% if login.is_superuser %}<span class="badge bg-warning text-dark ms-1">administrador</span>{% endif %}
+                            </p>
+                            {% if pode_trocar_senha %}
+                            <form action="{% url 'trocar_senha_funcionario' item.id_funcionario %}" method="POST"
+                                  class="form-acesso" id="formTrocarSenha" novalidate>
+                                {% csrf_token %}
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-key"></i> Trocar senha</h6>
+                                <div class="row g-3">
+                                    {% if trocando_a_propria %}
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold" for="acesso-senha_atual">Senha atual <span class="text-danger">*</span></label>
+                                        <input type="password" name="senha_atual" id="acesso-senha_atual" required autocomplete="current-password"
+                                               class="form-control shadow-sm {% if erros_acesso.senha_atual %}is-invalid{% endif %}"
+                                               data-msg-obrigatorio="Informe a sua senha atual.">
+                                        <div class="invalid-feedback">{{ erros_acesso.senha_atual|default:"Informe a sua senha atual." }}</div>
+                                    </div>
+                                    {% endif %}
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="acesso-senha">Nova senha <span class="text-danger">*</span></label>
+                                    <input type="password" name="senha" id="acesso-senha" required autocomplete="new-password"
+                                           class="form-control shadow-sm {% if erros_acesso.senha %}is-invalid{% endif %}"
+                                           placeholder="Mínimo de 8 caracteres" data-msg-obrigatorio="Crie uma senha." data-validar="senha">
+                                    <div class="invalid-feedback">{{ erros_acesso.senha|default:"Crie uma senha." }}</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="acesso-senha2">Confirmar senha <span class="text-danger">*</span></label>
+                                    <input type="password" name="senha2" id="acesso-senha2" required autocomplete="new-password"
+                                           class="form-control shadow-sm {% if erros_acesso.senha2 %}is-invalid{% endif %}"
+                                           placeholder="Digite a senha de novo" data-msg-obrigatorio="Repita a senha." data-validar="senha2">
+                                    <div class="invalid-feedback">{{ erros_acesso.senha2|default:"Repita a senha." }}</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="acesso-exibir" data-exibir-senha>
+                                        <label class="form-check-label" for="acesso-exibir">Exibir senha</label>
+                                    </div>
+                                    <div class="text-muted small mt-1">Pelo menos 8 caracteres, sem ser só números.</div>
+                                </div>
+                                </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <button type="submit" class="btn btn-outline-primary px-4">
+                                        <i class="bi bi-key"></i> Trocar senha
+                                    </button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                Somente um administrador pode trocar a senha de outra pessoa.
+                                Cada pessoa pode trocar a própria senha no próprio cadastro.
+                            </div>
+                            {% endif %}
+                        {% elif not pode_criar_acesso %}
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                Este funcionário ainda <strong>não tem login</strong>.
+                                Somente um administrador pode criar o acesso.
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-3">
+                                Este funcionário ainda <strong>não tem login</strong> (foi cadastrado antes do acesso por senha).
+                                Crie o acesso para que ele possa entrar no sistema.
+                            </p>
+                            <form action="{% url 'criar_acesso_funcionario' item.id_funcionario %}" method="POST"
+                                  class="form-acesso" id="formCriarAcesso" novalidate
+                                  data-url-usuario="{% url 'usuario_disponivel' %}">
+                                {% csrf_token %}
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold" for="acesso-usuario">Usuário (login) <span class="text-danger">*</span></label>
+                                        <!-- autocomplete="off": o navegador não deve preencher com o SEU usuário -->
+                                        <input type="text" name="usuario" id="acesso-usuario" maxlength="150" required
+                                               autocomplete="off" autocapitalize="none" spellcheck="false"
+                                               class="form-control shadow-sm {% if erros_acesso.usuario %}is-invalid{% endif %}"
+                                               value="{{ form_acesso.usuario }}" placeholder="ex.: maria.silva"
+                                               data-msg-obrigatorio="Escolha um nome de usuário para o login." data-validar="usuario">
+                                        <div class="invalid-feedback">{{ erros_acesso.usuario|default:"Escolha um nome de usuário para o login." }}</div>
+                                        <div class="valid-feedback">Nome de usuário disponível.</div>
+                                    </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="acesso-senha">Senha <span class="text-danger">*</span></label>
+                                    <input type="password" name="senha" id="acesso-senha" required autocomplete="new-password"
+                                           class="form-control shadow-sm {% if erros_acesso.senha %}is-invalid{% endif %}"
+                                           placeholder="Mínimo de 8 caracteres" data-msg-obrigatorio="Crie uma senha." data-validar="senha">
+                                    <div class="invalid-feedback">{{ erros_acesso.senha|default:"Crie uma senha." }}</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="acesso-senha2">Confirmar senha <span class="text-danger">*</span></label>
+                                    <input type="password" name="senha2" id="acesso-senha2" required autocomplete="new-password"
+                                           class="form-control shadow-sm {% if erros_acesso.senha2 %}is-invalid{% endif %}"
+                                           placeholder="Digite a senha de novo" data-msg-obrigatorio="Repita a senha." data-validar="senha2">
+                                    <div class="invalid-feedback">{{ erros_acesso.senha2|default:"Repita a senha." }}</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="acesso-exibir" data-exibir-senha>
+                                        <label class="form-check-label" for="acesso-exibir">Exibir senha</label>
+                                    </div>
+                                    <div class="text-muted small mt-1">Pelo menos 8 caracteres, sem ser só números.</div>
+                                </div>
+                                </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <button type="submit" class="btn btn-primary px-4">
+                                        <i class="bi bi-person-check"></i> Criar acesso
+                                    </button>
+                                </div>
+                            </form>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -562,6 +695,21 @@
                 return true;
             });
         }
+    });
+</script>
+
+<script src="{% static 'js/naire-validacao.js' %}"></script>
+<script>
+    // Avisos campo a campo nos formulários de acesso (regras em static/js/naire-validacao.js)
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.form-acesso').forEach(function (form) {
+            NaireValidacao.ativar(form);
+            form.addEventListener('submit', function (e) {
+                if (!NaireValidacao.validarTudo(form)) e.preventDefault();
+            });
+        });
+        var comErro = document.querySelector('.form-acesso .is-invalid');
+        if (comErro) comErro.scrollIntoView({ block: 'center' });
     });
 </script>
 

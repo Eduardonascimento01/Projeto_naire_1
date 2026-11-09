@@ -8,6 +8,13 @@
 {% block container %}
 <div class="blog-container">
     <div class="container py-4">
+        {% if user.is_authenticated and not user.is_staff %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            A sua conta não tem acesso às funções do sistema. Fale com um administrador.
+        </div>
+        {% endif %}
+
         <div class="row">
             <!-- Conteúdo principal do blog -->
             <div class="col-lg-8">

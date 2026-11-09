@@ -1,0 +1,341 @@
+/* ==========================================================================
+   NAIRE - padrão visual global
+   Carregado em bases.html, depois do Bootstrap. Vale para todas as páginas.
+
+   Por que tudo começa com ".naire"? Cada página tem o próprio <style>, que
+   aparece DEPOIS deste arquivo e venceria um empate. O prefixo .naire (a
+   classe do <body>) deixa estas regras mais específicas, e no CSS a regra
+   mais específica vence. Assim os tamanhos ficam iguais em todo o sistema.
+   ========================================================================== */
+
+:root {
+    --naire-verde: #1abc9c;
+    --naire-verde-escuro: #16a085;
+    --naire-raio: .6rem;
+}
+
+/* ---------- Fundo: cobre a tela toda (sem faixas brancas nas laterais) ---------- */
+body.naire {
+    background: #e9edf4 linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) fixed;
+    min-height: 100vh;
+    font-size: 1rem;
+}
+
+/* A área de conteúdo usa a largura da tela até 1600px (as tabelas precisam). */
+.naire main {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+/* ---------- Títulos: tamanho "fluido" ----------
+   clamp(mínimo, ideal, máximo): cresce com a largura da tela, mas nunca
+   fica menor que o mínimo (celular) nem maior que o máximo (monitor). */
+.naire h1,
+.naire .display-4,
+.naire .display-5 {
+    font-size: clamp(1.45rem, 1.1rem + 1.4vw, 2.15rem);
+    line-height: 1.2;
+}
+
+.naire .display-1 {           /* ícones grandes de "nenhum registro" */
+    font-size: clamp(2.5rem, 2rem + 2vw, 3.5rem);
+}
+
+.naire .lead {
+    font-size: clamp(.95rem, .9rem + .2vw, 1.075rem);
+}
+
+.naire h5 { font-size: clamp(1rem, .95rem + .25vw, 1.2rem); }
+
+/* ---------- Botões: três tamanhos, sempre os mesmos ---------- */
+.naire .btn {
+    font-size: .95rem;
+    padding: .45rem .9rem;
+    border-radius: var(--naire-raio);
+    line-height: 1.3;
+}
+
+.naire .btn-lg {
+    font-size: 1rem;
+    padding: .55rem 1.15rem;
+}
+
+.naire .btn-sm {
+    font-size: .8rem;
+    padding: .3rem .6rem;
+    border-radius: calc(var(--naire-raio) - .15rem);
+}
+
+/* Em telas de toque, o dedo precisa de um alvo de pelo menos ~40px. */
+@media (pointer: coarse) {
+    .naire .btn    { min-height: 42px; }
+    .naire .btn-sm { min-height: 36px; }
+}
+
+/* ---------- Formulários ---------- */
+.naire .form-control,
+.naire .form-select {
+    font-size: 1rem;               /* 16px: abaixo disso o iPhone dá zoom ao digitar */
+    border-radius: var(--naire-raio);
+}
+
+.naire .form-control-lg,
+.naire .form-select-lg {
+    font-size: 1rem;
+    padding: .55rem .85rem;
+    min-height: 44px;
+}
+
+.naire .form-label {
+    font-size: .9rem;
+    margin-bottom: .3rem;
+}
+
+.naire .input-group-text { border-radius: var(--naire-raio); }
+
+/* ---------- Tabelas: linhas compactas, rolagem lateral quando não cabe ---------- */
+.naire .table {
+    font-size: .9rem;
+    /* Algumas páginas usavam overflow:hidden, que impede a coluna fixa abaixo.
+       O canto arredondado já vem da moldura (.table-responsive.rounded-4). */
+    overflow: visible;
+}
+
+.naire .table > :not(caption) > * > * {
+    padding: .6rem .7rem;
+}
+
+.naire .table thead th {
+    font-size: .72rem;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* A tabela rola dentro de uma "janela" do tamanho da tela: a barra de
+   rolagem lateral fica sempre visível (antes ela só aparecia depois do
+   último cadastro) e o cabeçalho fica fixo enquanto as linhas rolam.
+   5.5rem = altura do menu fixo + uma folga. */
+.naire .table-responsive {
+    max-height: calc(100vh - 5.5rem);
+    overflow: auto;
+    scrollbar-width: thin;                       /* Firefox */
+    scrollbar-color: var(--naire-verde) #e9edf2;
+}
+
+@supports (height: 100dvh) {                     /* celular: desconta a barra do navegador */
+    .naire .table-responsive { max-height: calc(100dvh - 5.5rem); }
+}
+
+.naire .table-responsive::-webkit-scrollbar { width: 10px; height: 10px; }
+.naire .table-responsive::-webkit-scrollbar-track { background: #e9edf2; }
+.naire .table-responsive::-webkit-scrollbar-thumb {
+    background: var(--naire-verde);
+    border-radius: 10px;
+    border: 2px solid #e9edf2;
+}
+
+.naire .table-responsive thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* Cada informação numa linha só (antes, nomes e datas quebravam em 3 linhas). */
+.naire .table tbody td {
+    white-space: nowrap;
+}
+
+/* Textos longos (mensagens, observações) continuam podendo quebrar. */
+.naire .table tbody td.text-wrap,
+.naire .table tbody td .text-wrap {
+    white-space: normal;
+    min-width: 14rem;
+}
+
+/* O "zoom" ao passar o mouse fazia a linha vazar da tabela. */
+.naire .table tbody tr:hover {
+    transform: none;
+}
+
+/* Botões de ação lado a lado, sem empilhar. */
+.naire .table .btn-group {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: .25rem;
+}
+
+.naire .table .btn-group .btn,
+.naire .table .btn-group form {
+    margin: 0;
+}
+
+/* Coluna de ações (a última) sempre visível no computador e no tablet:
+   a tabela rola para o lado, mas os botões ficam "grudados" na direita. */
+@media (min-width: 768px) {
+    .naire .table-responsive .table tr > :last-child {
+        position: sticky;
+        right: 0;
+        z-index: 1;
+        border-left: 1px solid rgba(0, 0, 0, .08);
+    }
+
+    .naire .table-responsive .table tbody tr > :last-child {
+        background-color: #fff;
+    }
+
+    .naire .table-responsive .table thead tr > :last-child {
+        z-index: 3;
+    }
+}
+
+.naire .table .avatar-circle {
+    width: 36px;
+    height: 36px;
+}
+
+.naire .table .avatar-circle .initials {
+    font-size: .8rem;
+}
+
+.naire .table .badge {
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+/* ---------- Cartões ---------- */
+.naire .card {
+    border-radius: calc(var(--naire-raio) + .2rem);
+}
+
+/* ---------- Menu superior em "moldura", fixo no topo ----------
+   O <header> fica grudado no topo (sticky-top) e tem o mesmo fundo da
+   página, levemente translúcido; o menu dentro dele é um cartão com borda. */
+.naire .naire-topo {
+    padding: .5rem .5rem 0;
+    background: rgba(233, 237, 244, .85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.naire .naire-menu {
+    max-width: 1600px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: calc(var(--naire-raio) + .25rem);
+    box-shadow: 0 2px 10px rgba(30, 50, 90, .08);
+    padding: .35rem .5rem;
+}
+
+/* Celular: o menu aberto rola por dentro, sem passar do tamanho da tela. */
+@media (max-width: 991.98px) {
+    .naire .naire-menu .navbar-collapse {
+        max-height: calc(100vh - 5rem);
+        overflow-y: auto;
+    }
+}
+
+.naire .navbar-brand {
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: .03em;
+}
+
+.naire .navbar form .btn-sm {
+    margin-left: .5rem;
+}
+
+.naire .navbar .nav-link {
+    font-size: .875rem;
+    font-weight: 500;
+}
+
+.naire .dropdown-item {
+    font-size: .875rem;
+}
+
+/* ==========================================================================
+   Celular e tablet pequeno (até 767px)
+   ========================================================================== */
+@media (max-width: 767.98px) {
+    .naire .container-fluid.py-4 {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+
+    /* Cartões de números (Total, Validados...): dois por linha, mais baixos. */
+    .naire .row > [class*="col-md-3"]:has(> .card.text-white),
+    .naire .row > [class*="col-md-4"]:has(> .card.text-white) {
+        flex: 0 0 auto;
+        width: 50%;
+    }
+
+    .naire .card.text-white .card-body { padding: .8rem; }
+    .naire .card.text-white h6 { font-size: .78rem; }
+    .naire .card.text-white h2 { font-size: 1.4rem; }
+    .naire .card.text-white .fs-1 { font-size: 1.5rem !important; }
+
+    /* Cabeçalho das páginas: título e botão alinhados, sem espaço sobrando. */
+    .naire hr.my-3 { margin: .75rem 0 !important; }
+
+    .naire .table { font-size: .85rem; }
+    .naire .table > :not(caption) > * > * { padding: .5rem .55rem; }
+
+    /* Formulários: rodapé com botões em largura total, um embaixo do outro. */
+    .naire form .d-flex.justify-content-end > .btn,
+    .naire form .d-flex.justify-content-end > a.btn {
+        flex: 1 1 100%;
+    }
+}
+
+/* ==========================================================================
+   Modo LGPD: os botões de exportar/anonimizar só aparecem quando quem tem
+   permissão liga o botão "LGPD" no título da coluna de ações.
+   (A permissão de verdade é conferida no servidor; isto só evita cliques
+   acidentais numa ação que não tem volta.)
+   ========================================================================== */
+.naire .acoes-lgpd {
+    display: inline-flex;
+    gap: .25rem;
+    padding-left: .35rem;
+    margin-left: .1rem;
+    border-left: 2px dashed rgba(220, 53, 69, .35);
+}
+
+.naire:not(.modo-lgpd) .acoes-lgpd {
+    display: none;
+}
+
+.naire .btn-modo-lgpd {
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .55);
+    background: transparent;
+    font-size: .7rem;
+    padding: .15rem .45rem;
+    min-height: 0;
+    vertical-align: middle;
+}
+
+.naire .btn-modo-lgpd:hover {
+    background: rgba(255, 255, 255, .15);
+    color: #fff;
+}
+
+.naire .btn-modo-lgpd[aria-pressed="true"] {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+/* ---------- Avisos do sistema (mensagens de sucesso e erro) ---------- */
+.naire .naire-mensagens {
+    padding: .75rem .75rem 0;
+}
+
+.naire .naire-mensagens .alert {
+    margin-bottom: .5rem;
+    border-radius: var(--naire-raio);
+    font-size: .95rem;
+}

@@ -14,9 +14,9 @@ Sistema web desenvolvido em Python/Django para gestão de apadrinhamentos, entre
 1. Clone o repositório:
 `git clone [URL_DO_SEU_REPOSITORIO]`
 
-2. Crie e ative o ambiente virtual **com Python 3.12 ou 3.13**.
+2. Crie e ative o ambiente virtual **com Python 3.12** (recomendado; a 3.13 também funciona).
 O Python 3.14 não funciona: o Django 4.2 não o suporta, e o `django-cryptography` (que cifra os CPFs) não funciona no Django 5.
-`py -3.13 -m venv .venv`
+`py -3.12 -m venv .venv`
 `.\.venv\Scripts\Activate.ps1`
 
 3. Instale as dependências:
@@ -41,6 +41,9 @@ Para verificar a sintaxe dos arquivos Python, executar as checagens do Django e 
 O resultado é salvo em `relatorio_erros.md`. O comando retorna código de saída diferente de zero se alguma etapa falhar; para escolher outro caminho para o relatório, use `python relatorio_erros.py --saida caminho\relatorio.md`.
 
 Essa verificação não executa o pentest nem altera o banco de dados.
+
+## 🌐 Demonstração online (PythonAnywhere)
+Para publicar uma versão de teste com dados fictícios, siga o guia [DEPLOY_PYTHONANYWHERE.md](DEPLOY_PYTHONANYWHERE.md).
 
 ## ✅ Testes automatizados
 Os testes usam SQLite em memória (não precisam de MySQL e não tocam no banco real):

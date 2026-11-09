@@ -115,8 +115,6 @@
                                             <th>📅 DT NASC</th>
                                             <th>🆔 CPF</th>
                                             <th>⚧ SEXO</th>
-                                            <th>👨‍👩‍👧 RESPONSÁVEL</th>
-                                            <th class="text-center">⚙️ AÇÃO</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -130,6 +128,14 @@
                                                     </div>
                                                     <div>
                                                         <strong>{{ filho.pnome }} {{ filho.snome }}</strong>
+                                                        <br>
+                                                        <small>
+                                                            <a href="{% url 'lista_filhos' id_responsavel=filho.id_responsavel_id %}"
+                                                               class="text-muted text-decoration-none link-responsavel"
+                                                               title="Abrir a família (editar, desativar...)">
+                                                                <i class="bi bi-person-badge"></i> Resp.: {{ filho.id_responsavel }}
+                                                            </a>
+                                                        </small>
                                                     </div>
                                                 </div>
                                             </td>
@@ -143,7 +149,8 @@
                                                 {% endif %}
                                             </td>
                                             <td>
-                                                <small>{{ filho.data_nascimento|date:"d/m/Y"|default:"—" }}</small>
+                                                <!-- SEGURANÇA: só o ano de nascimento (LGPD), como na lista de Crianças -->
+                                                <small>**/**/{{ filho.data_nascimento|slice:"6:"|default:"—" }}</small>
                                             </td>
                                             <td>
                                                 {% if filho.cpf %}
@@ -160,37 +167,6 @@
                                                 {% else %}
                                                     <span class="badge bg-secondary">🌱 Outro</span>
                                                 {% endif %}
-                                            </td>
-                                            <td>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="avatar-circle-xs me-2">
-                                                        <span class="initials">{{ filho.id_responsavel.pnome|slice:":1"|default:"" }}{{ filho.id_responsavel.snome|slice:":1"|default:"" }}</span>
-                                                    </div>
-                                                    <div>
-                                                        <small>
-                                                            <strong>{{ filho.id_responsavel.pnome|default:"" }} {{ filho.id_responsavel.snome|default:"" }}</strong>
-                                                            <br>
-                                                            <span class="text-muted">ID: #{{ filho.id_responsavel.id_responsavel|default:filho.id_responsavel }}</span>
-                                                        </small>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div class="text-center">
-                                                    <form action="{% url 'desativar_filho' id_responsavel=filho.id_responsavel_id %}" 
-                                                        method="POST" 
-                                                        style="display: inline-block;"
-                                                        class="desativar-form"
-                                                        data-nome="{{ filho.pnome }} {{ filho.snome }}">
-                                                        {% csrf_token %}
-                                                        <button type="submit" 
-                                                                class="btn btn-outline-danger btn-sm desativar-btn"
-                                                                data-bs-toggle="tooltip" 
-                                                                title="Desativar criança" disabled>
-                                                            <i class="bi bi-person-x-fill"></i> Desativar
-                                                        </button>
-                                                    </form>
-                                                </div>
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -449,17 +425,6 @@
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
         
-        // Confirmação antes de desativar
-        const desativarBtns = document.querySelectorAll('.desativar-btn');
-        desativarBtns.forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                const nome = this.getAttribute('data-nome');
-                if (!confirm(`⚠️ Tem certeza que deseja desativar o registro de ${nome}?\n\nEsta ação pode ser revertida posteriormente.`)) {
-                    e.preventDefault();
-                }
-            });
-        });
-        
         // Exportar resultados
         const exportBtn = document.getElementById('exportResultadosBtn');
         if (exportBtn) {
@@ -468,13 +433,13 @@
                 let csvContent = "ID,Nome Completo,Idade,Data Nascimento,CPF,Sexo,Responsável\n";
                 
                 rows.forEach(row => {
-                    const id = row.cells[0]?.textContent.replace('#', '') || '';
+                    const id = textoCelula(row.cells[0]).replace('#', '') || '';
                     const nome = row.cells[1]?.querySelector('strong')?.textContent || '';
-                    const idade = row.cells[2]?.textContent.trim() || '';
-                    const dtNasc = row.cells[3]?.textContent.trim() || '';
-                    const cpf = row.cells[4]?.textContent.replace(/\./g, '').replace(/-/g, '') || '';
-                    const sexo = row.cells[5]?.textContent.trim() || '';
-                    const responsavel = row.cells[6]?.querySelector('strong')?.textContent || '';
+                    const idade = textoCelula(row.cells[2]).trim() || '';
+                    const dtNasc = textoCelula(row.cells[3]).trim() || '';
+                    const cpf = textoCelula(row.cells[4]).replace(/\./g, '').replace(/-/g, '') || '';
+                    const sexo = textoCelula(row.cells[5]).trim() || '';
+                    const responsavel = row.cells[1]?.querySelector('.link-responsavel')?.textContent.replace('Resp.:', '').trim() || '';
                     
                     csvContent += `${id},"${nome}","${idade}","${dtNasc}",${cpf},"${sexo}","${responsavel}"\n`;
                 });

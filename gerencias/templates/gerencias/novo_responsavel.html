@@ -51,7 +51,8 @@
 
                     <!-- Corpo do formulário -->
                     <div class="card-body p-4 p-lg-5">
-                        <form action="{% url 'insere_novo_responsavel' %}" method="POST" id="formFamilia" class="needs-validation" novalidate>
+                        <form action="{% url 'insere_novo_responsavel' %}" method="POST" id="formFamilia" novalidate
+                              {% if form %}data-reenviado="1"{% endif %}>
                             {% csrf_token %}
                             
                             <!-- Campo oculto -->
@@ -65,31 +66,39 @@
                             <div class="row g-4 mb-4">
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">
-                                        <i class="bi bi-person-fill"></i> Primeiro Nome
+                                        <i class="bi bi-person-fill"></i> Primeiro Nome <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" name="pnome" class="form-control form-control-lg shadow-sm" 
-                                           placeholder="Digite o primeiro nome" required>
+                                    <input type="text" name="pnome" id="resp-pnome" class="form-control form-control-lg shadow-sm {% if erros.pnome %}is-invalid{% endif %}"
+                                           placeholder="Digite o primeiro nome" value="{{ form.pnome|default:'' }}" required
+                                           data-msg-obrigatorio="Informe o primeiro nome.">
+                                    <div class="invalid-feedback">{{ erros.pnome|default:"Informe o primeiro nome." }}</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">
-                                        <i class="bi bi-person-fill"></i> Sobrenome
+                                        <i class="bi bi-person-fill"></i> Sobrenome <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" name="snome" class="form-control form-control-lg shadow-sm" 
-                                           placeholder="Digite o sobrenome" required>
+                                    <input type="text" name="snome" id="resp-snome" class="form-control form-control-lg shadow-sm {% if erros.snome %}is-invalid{% endif %}"
+                                           placeholder="Digite o sobrenome" value="{{ form.snome|default:'' }}" required
+                                           data-msg-obrigatorio="Informe o sobrenome.">
+                                    <div class="invalid-feedback">{{ erros.snome|default:"Informe o sobrenome." }}</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">
-                                        <i class="bi bi-credit-card"></i> CPF
+                                        <i class="bi bi-credit-card"></i> CPF <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" name="cpf" class="form-control form-control-lg shadow-sm cpf-mask" 
-                                           placeholder="000.000.000-00" required>
+                                    <input type="text" name="cpf" id="resp-cpf" class="form-control form-control-lg shadow-sm cpf-mask {% if erros.cpf %}is-invalid{% endif %}"
+                                           placeholder="000.000.000-00" value="{{ form.cpf|default:'' }}" required inputmode="numeric" maxlength="14"
+                                           data-msg-obrigatorio="Informe o CPF." data-validar="cpf">
+                                    <div class="invalid-feedback">{{ erros.cpf|default:"Informe o CPF." }}</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">
-                                        <i class="bi bi-calendar-date"></i> Data de Nascimento
+                                        <i class="bi bi-calendar-date"></i> Data de Nascimento <span class="text-danger">*</span>
                                     </label>
-                                    <input type="date" name="dt_nasc" class="form-control form-control-lg shadow-sm" 
-                                           required>
+                                    <input type="date" name="dt_nasc" id="resp-dt_nasc" class="form-control form-control-lg shadow-sm {% if erros.dt_nasc %}is-invalid{% endif %}"
+                                           value="{{ form.dt_nasc|default:'' }}" required
+                                           data-msg-obrigatorio="Informe a data de nascimento.">
+                                    <div class="invalid-feedback">{{ erros.dt_nasc|default:"Informe a data de nascimento." }}</div>
                                 </div>
                             </div>
 
@@ -103,7 +112,7 @@
                                     <label class="form-label fw-semibold">
                                         <i class="bi bi-briefcase"></i> Trabalha?
                                     </label>
-                                    <select name="resp_trabalha" class="form-select form-select-lg shadow-sm">
+                                    <select name="resp_trabalha" class="form-select form-select-lg shadow-sm" data-valor="{{ form.resp_trabalha|default:'' }}">
                                         <option value="N">❌ Não</option>
                                         <option value="S">✅ Sim</option>
                                     </select>
@@ -112,7 +121,7 @@
                                     <label class="form-label fw-semibold">
                                         <i class="bi bi-heart-fill"></i> É casado(a)?
                                     </label>
-                                    <select name="flag_conjuge" class="form-select form-select-lg shadow-sm" id="flagConjuge">
+                                    <select name="flag_conjuge" class="form-select form-select-lg shadow-sm" data-valor="{{ form.flag_conjuge|default:'' }}" id="flagConjuge">
                                         <option value="N">❌ Não</option>
                                         <option value="S">✅ Sim</option>
                                     </select>
@@ -121,7 +130,7 @@
                                     <label class="form-label fw-semibold">
                                         <i class="bi bi-briefcase"></i> Cônjuge trabalha?
                                     </label>
-                                    <select name="conjuge_trabalha" class="form-select form-select-lg shadow-sm">
+                                    <select name="conjuge_trabalha" class="form-select form-select-lg shadow-sm" data-valor="{{ form.conjuge_trabalha|default:'' }}">
                                         <option value="N">❌ Não</option>
                                         <option value="S">✅ Sim</option>
                                     </select>
@@ -135,28 +144,35 @@
                             </div>
                             <div class="row g-4 mb-4">
                                 <div class="col-md-8">
-                                    <label class="form-label fw-semibold">Logradouro e Número</label>
-                                    <input type="text" name="endereco" class="form-control form-control-lg shadow-sm" 
-                                           placeholder="Rua, Avenida, Número" required>
+                                    <label class="form-label fw-semibold"> Logradouro e Número <span class="text-danger">*</span></label>
+                                    <input type="text" name="endereco" id="resp-endereco" class="form-control form-control-lg shadow-sm {% if erros.endereco %}is-invalid{% endif %}"
+                                           placeholder="Rua, Avenida, Número" value="{{ form.endereco|default:'' }}" required
+                                           data-msg-obrigatorio="Informe o endereço.">
+                                    <div class="invalid-feedback">{{ erros.endereco|default:"Informe o endereço." }}</div>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label fw-semibold">Complemento</label>
                                     <input type="text" name="complemento" class="form-control form-control-lg shadow-sm" 
-                                           placeholder="Apto, Bloco, Casa">
+                                           placeholder="Apto, Bloco, Casa" value="{{ form.complemento|default:'' }}">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label fw-semibold">Bairro</label>
-                                    <input type="text" name="bairro" class="form-control form-control-lg shadow-sm" 
-                                           placeholder="Bairro" required>
+                                    <label class="form-label fw-semibold"> Bairro <span class="text-danger">*</span></label>
+                                    <input type="text" name="bairro" id="resp-bairro" class="form-control form-control-lg shadow-sm {% if erros.bairro %}is-invalid{% endif %}"
+                                           placeholder="Bairro" value="{{ form.bairro|default:'' }}" required
+                                           data-msg-obrigatorio="Informe o bairro.">
+                                    <div class="invalid-feedback">{{ erros.bairro|default:"Informe o bairro." }}</div>
                                 </div>
                                 <div class="col-md-5">
-                                    <label class="form-label fw-semibold">Cidade</label>
-                                    <input type="text" name="cidade" class="form-control form-control-lg shadow-sm" 
-                                           placeholder="Cidade" required>
+                                    <label class="form-label fw-semibold"> Cidade <span class="text-danger">*</span></label>
+                                    <input type="text" name="cidade" id="resp-cidade" class="form-control form-control-lg shadow-sm {% if erros.cidade %}is-invalid{% endif %}"
+                                           placeholder="Cidade" value="{{ form.cidade|default:'' }}" required
+                                           data-msg-obrigatorio="Informe a cidade.">
+                                    <div class="invalid-feedback">{{ erros.cidade|default:"Informe a cidade." }}</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label fw-semibold">UF</label>
-                                    <select name="estado" class="form-select form-select-lg shadow-sm" required>
+                                    <label class="form-label fw-semibold">UF <span class="text-danger">*</span></label>
+                                    <select name="estado" id="resp-estado" class="form-select form-select-lg shadow-sm {% if erros.estado %}is-invalid{% endif %}" required
+                                            data-valor="{{ form.estado|default:'' }}" data-msg-obrigatorio="Escolha o estado.">
                                         <option value="" disabled selected>Selecione</option>
                                         <option value="AC">Acre</option>
                                         <option value="AL">Alagoas</option>
@@ -186,6 +202,7 @@
                                         <option value="SE">Sergipe</option>
                                         <option value="TO">Tocantins</option>
                                     </select>
+                                    <div class="invalid-feedback">{{ erros.estado|default:"Escolha o estado." }}</div>
                                 </div>
                             </div>
 
@@ -199,7 +216,7 @@
                                     <label class="form-label fw-semibold">
                                         <i class="bi bi-check2-circle"></i> Validado?
                                     </label>
-                                    <select name="flag_validado" class="form-select form-select-lg shadow-sm">
+                                    <select name="flag_validado" class="form-select form-select-lg shadow-sm" data-valor="{{ form.flag_validado|default:'' }}">
                                         <option value="N" selected>⏳ Pendente</option>
                                         <option value="S">✅ Validado</option>
                                     </select>
@@ -208,7 +225,7 @@
                                     <label class="form-label fw-semibold">
                                         <i class="bi bi-toggle-on"></i> Ativo?
                                     </label>
-                                    <select name="flag_ativo" class="form-select form-select-lg shadow-sm">
+                                    <select name="flag_ativo" class="form-select form-select-lg shadow-sm" data-valor="{{ form.flag_ativo|default:'' }}">
                                         <option value="N">❌ Inativo</option>
                                         <option value="S" selected>✅ Ativo</option>
                                     </select>
@@ -218,9 +235,30 @@
                                         <i class="bi bi-chat-left-text"></i> Observações
                                     </label>
                                     <textarea name="obs" class="form-control shadow-sm" rows="3" 
-                                              placeholder="Informações adicionais sobre a família..."></textarea>
+                                              placeholder="Informações adicionais sobre a família...">{{ form.obs|default:'' }}</textarea>
                                 </div>
                             </div>
+
+                            <!-- Seção: Crianças da família -->
+                            <div class="section-title mb-3 mt-4 d-flex align-items-center justify-content-between">
+                                <span><i class="bi bi-people-fill me-2"></i>Crianças da família</span>
+                                <span class="badge bg-success rounded-pill" id="totalFilhos">0</span>
+                            </div>
+                            <p class="text-muted small mb-3">
+                                Preencha os dados de cada criança. Tem mais de um filho? Clique em <strong>+ 1 filho</strong>
+                                quantas vezes precisar. Se não houver criança para cadastrar agora, clique em <strong>Remover</strong>.
+                            </p>
+                            <div id="listaFilhos">
+                                {% for filho in filhos %}
+                                    {% include 'gerencias/_bloco_filho.html' with i=forloop.counter0 n=forloop.counter f=filho e=filho.erros %}
+                                {% endfor %}
+                            </div>
+                            <div class="text-muted small fst-italic mb-3 {% if filhos %}d-none{% endif %}" id="semFilhos">
+                                Nenhuma criança neste cadastro.
+                            </div>
+                            <button type="button" class="btn btn-outline-success" id="adicionarFilho">
+                                <i class="bi bi-plus-circle"></i> + 1 filho
+                            </button>
 
                             <!-- Botões de ação -->
                             <div class="d-flex gap-3 justify-content-end mt-5 pt-3 border-top">
@@ -232,6 +270,10 @@
                                 </button>
                             </div>
                         </form>
+                        <!-- Molde do bloco de criança usado pelo botão "+ 1 filho" -->
+                        <template id="moldeFilho">
+                            {% include 'gerencias/_bloco_filho.html' with i='__N__' n='__NUM__' %}
+                        </template>
                     </div>
                 </div>
             </div>
@@ -420,148 +462,119 @@
     }
 </style>
 
+<script src="{% static 'js/naire-validacao.js' %}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Máscara para CPF
-        const cpfInput = document.querySelector('.cpf-mask');
-        if (cpfInput) {
-            cpfInput.addEventListener('input', function(e) {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length <= 11) {
-                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
-                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
-                    value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-                    e.target.value = value;
-                }
-            });
-        }
-        
-        // Mostrar/ocultar campo "conjuge trabalha" baseado no estado civil
-        const flagConjuge = document.getElementById('flagConjuge');
-        const conjugeTrabalhaDiv = document.getElementById('conjugeTrabalhaDiv');
-        
-        function toggleConjugeField() {
-            if (flagConjuge.value === 'S') {
-                conjugeTrabalhaDiv.style.display = 'block';
-            } else {
-                conjugeTrabalhaDiv.style.display = 'none';
-                const conjugeSelect = document.querySelector('select[name="conjuge_trabalha"]');
-                if (conjugeSelect) conjugeSelect.value = 'N';
-            }
-        }
-        
-        if (flagConjuge) {
-            toggleConjugeField();
-            flagConjuge.addEventListener('change', toggleConjugeField);
-        }
-        
-        // Validação do formulário
-        const form = document.getElementById('formFamilia');
-        
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Validar campos obrigatórios
-            const requiredFields = form.querySelectorAll('[required]');
-            let isValid = true;
-            
-            requiredFields.forEach(field => {
-                if (!field.value.trim()) {
-                    field.classList.add('is-invalid');
-                    isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
-                }
-            });
-            
-            if (!isValid) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Campos obrigatórios',
-                    text: 'Por favor, preencha todos os campos obrigatórios.',
-                    confirmButtonColor: '#1abc9c'
-                });
-                return;
-            }
-            
-            // Validar CPF
-            const cpf = cpfInput.value.replace(/\D/g, '');
-            if (cpf.length !== 11) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'CPF Inválido',
-                    text: 'O CPF deve conter 11 dígitos.',
-                    confirmButtonColor: '#1abc9c'
-                });
-                cpfInput.classList.add('is-invalid');
-                return;
-            }
-            
-            
-            // Confirmar cadastro
-            Swal.fire({
-                title: 'Confirmar cadastro',
-                html: `
-                    <div class="text-center">
-                        <i class="bi bi-house-heart" style="font-size: 48px; color: #1abc9c;"></i>
-                        <p class="mt-3">Deseja cadastrar esta família?</p>
-                        <p class="text-muted small">Verifique os dados antes de confirmar.</p>
-                    </div>
-                `,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#1abc9c',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: '✅ Sim, cadastrar',
-                cancelButtonText: '❌ Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Mostrar loading no botão
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    const originalText = submitBtn.innerHTML;
-                    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cadastrando...';
-                    submitBtn.disabled = true;
-                    submitBtn.classList.add('btn-loading');
-                    
-                    // Enviar formulário
-                    form.submit();
-                }
-            });
-        });
-        
-        // Remover classe is-invalid ao digitar
-        const inputs = form.querySelectorAll('input, select, textarea');
-        inputs.forEach(input => {
-            input.addEventListener('input', function() {
-                this.classList.remove('is-invalid');
-            });
-        });
-        
-        // Validação de CPF ao sair do campo
-        if (cpfInput) {
-            cpfInput.addEventListener('blur', function() {
-                let value = this.value.replace(/\D/g, '');
-                if (value.length === 11) {
-                    if (value === '00000000000' || value === '11111111111' || 
-                        value === '22222222222' || value === '33333333333' ||
-                        value === '44444444444' || value === '55555555555' ||
-                        value === '66666666666' || value === '77777777777' ||
-                        value === '88888888888' || value === '99999999999') {
-                        this.classList.add('is-invalid');
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'CPF Inválido',
-                            text: 'Digite um CPF válido.',
-                            confirmButtonColor: '#1abc9c'
-                        });
-                    } else {
-                        this.classList.remove('is-invalid');
-                        this.classList.add('is-valid');
-                    }
-                }
-            });
-        }
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('formFamilia');
+    const lista = document.getElementById('listaFilhos');
+    const molde = document.getElementById('moldeFilho');
+    const semFilhos = document.getElementById('semFilhos');
+    const total = document.getElementById('totalFilhos');
+    const snomeResp = document.getElementById('resp-snome');
+
+    // Selects que voltam preenchidos depois de um erro no servidor
+    form.querySelectorAll('select[data-valor]').forEach(sel => {
+        if (sel.dataset.valor) sel.value = sel.dataset.valor;
     });
+
+    // ---------- Máscaras (valem também nos blocos de criança criados depois) ----------
+    form.addEventListener('input', function (e) {
+        const c = e.target;
+        if (c.classList.contains('cpf-mask')) {
+            let v = c.value.replace(/\D/g, '').slice(0, 11);
+            c.value = v.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        } else if (c.classList.contains('date-mask')) {
+            let v = c.value.replace(/\D/g, '').slice(0, 8);
+            if (v.length > 4) v = `${v.slice(0, 2)}/${v.slice(2, 4)}/${v.slice(4)}`;
+            else if (v.length > 2) v = `${v.slice(0, 2)}/${v.slice(2)}`;
+            c.value = v;
+        }
+    }, true);
+
+    // ---------- "Cônjuge trabalha?" só aparece para quem é casado(a) ----------
+    const flagConjuge = document.getElementById('flagConjuge');
+    const conjugeTrabalhaDiv = document.getElementById('conjugeTrabalhaDiv');
+    function toggleConjuge() {
+        const casado = flagConjuge.value === 'S';
+        conjugeTrabalhaDiv.style.display = casado ? 'block' : 'none';
+        if (!casado) form.querySelector('select[name="conjuge_trabalha"]').value = 'N';
+    }
+    toggleConjuge();
+    flagConjuge.addEventListener('change', toggleConjuge);
+
+    // ---------- Crianças: + 1 filho / Remover ----------
+    // Cada bloco recebe um número próprio nos nomes dos campos (filho-0-pnome,
+    // filho-1-pnome...). Números de blocos removidos não são reaproveitados.
+    let proximo = 0;
+    lista.querySelectorAll('.bloco-filho').forEach(b => { proximo = Math.max(proximo, Number(b.dataset.indice) + 1); });
+
+    function renumerar() {
+        const blocos = lista.querySelectorAll('.bloco-filho');
+        blocos.forEach((b, i) => { b.querySelector('.numero-filho').textContent = i + 1; });
+        total.textContent = blocos.length;
+        semFilhos.classList.toggle('d-none', blocos.length > 0);
+    }
+
+    function adicionarFilho() {
+        const html = molde.innerHTML.replaceAll('__N__', proximo).replaceAll('__NUM__', '');
+        proximo++;
+        lista.insertAdjacentHTML('beforeend', html);
+        const bloco = lista.lastElementChild;
+        // O sobrenome do responsável já vem preenchido (dá para mudar).
+        const snome = bloco.querySelector('.sobrenome-filho');
+        if (snome && snomeResp && snomeResp.value.trim()) snome.value = snomeResp.value.trim();
+        renumerar();
+        return bloco;
+    }
+
+    document.getElementById('adicionarFilho').addEventListener('click', function () {
+        const bloco = adicionarFilho();
+        bloco.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bloco.querySelector('input').focus({ preventScroll: true });
+    });
+
+    lista.addEventListener('click', function (e) {
+        const botao = e.target.closest('.remover-filho');
+        if (!botao) return;
+        botao.closest('.bloco-filho').remove();
+        renumerar();
+    });
+
+    // Cadastro novo começa com o bloco da primeira criança aberto.
+    if (!lista.querySelector('.bloco-filho') && !form.dataset.reenviado) adicionarFilho();
+    renumerar();
+
+    // Avisos campo a campo (regras em static/js/naire-validacao.js)
+    NaireValidacao.ativar(form);
+
+    // ---------- Envio ----------
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!NaireValidacao.validarTudo(form)) return;
+        const n = lista.querySelectorAll('.bloco-filho').length;
+        Swal.fire({
+            title: 'Confirmar cadastro',
+            html: `<p>Cadastrar esta família ${n ? `com <strong>${n} criança(s)</strong>` : '<strong>sem crianças</strong>'}?</p>
+                   <p class="text-muted small">Verifique os dados antes de confirmar.</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#1abc9c',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '✅ Sim, cadastrar',
+            cancelButtonText: '❌ Cancelar'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            const botao = form.querySelector('button[type="submit"]');
+            botao.innerHTML = '<i class="bi bi-hourglass-split"></i> Cadastrando...';
+            botao.disabled = true;
+            form.submit();
+        });
+    });
+
+    // Erro vindo do servidor: leva a pessoa ao primeiro campo com problema.
+    const comErro = form.querySelector('.is-invalid');
+    if (comErro) comErro.scrollIntoView({ block: 'center' });
+});
 </script>
 
 <!-- SweetAlert2 -->

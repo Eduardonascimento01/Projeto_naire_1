@@ -15,6 +15,9 @@ urlpatterns = [
     
     path('gerencias/novo_funcionario/',views.novo_funcionario, name='novo_funcionario'),
     path('gerencias/insere_funcionario/',views.insere_novo_funcionario, name='insere_novo_funcionario'),
+    path('gerencias/usuario_disponivel/', views.usuario_disponivel, name='usuario_disponivel'),
+    path('gerencias/funcionario/<int:id_funcionario>/criar_acesso/', views.criar_acesso_funcionario, name='criar_acesso_funcionario'),
+    path('gerencias/funcionario/<int:id_funcionario>/trocar_senha/', views.trocar_senha_funcionario, name='trocar_senha_funcionario'),
     path('gerencias/lista_funcionarios/',views.lista_funcionarios, name='lista_funcionarios'),
     path('gerencias/editar_funcionario/<int:id_funcionario>/', views.editar_funcionario, name='editar_funcionario'),
     path('gerencias/atualizar_funcionario/', views.atualiza_funcionario, name='atualiza_funcionario'),
@@ -83,5 +86,7 @@ urlpatterns = [
     path('gerencias/insere_nova_entrega/', views.insere_nova_entrega, name='insere_nova_entrega'),
     path('gerencias/atualiza_entrega/<int:id_entrega>/', views.atualiza_entrega, name='atualiza_entrega'),
     path('gerencias/editar_entrega/<int:id_entrega>/', views.editar_entrega, name='editar_entrega'),
+    path('gerencias/finalizar_entrega/<int:id_entrega>/', views.finalizar_entrega, name='finalizar_entrega'),
+    path('gerencias/reabrir_entrega/<int:id_entrega>/', views.reabrir_entrega, name='reabrir_entrega'),
 
 ]
