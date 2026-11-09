@@ -858,11 +858,13 @@ class AcessoNaEdicaoTests(CenarioFuncionarios):
         dados.update(extra)
         return self.client.post(reverse('criar_acesso_funcionario', args=[func.pk]), dados, follow=True)
 
-    def trocar(self, quem, func, senha=None):
+    def trocar(self, quem, func, senha=None, senha_atual=None):
         self.client.force_login(quem)
         senha = senha or self.NOVA
-        return self.client.post(reverse('trocar_senha_funcionario', args=[func.pk]),
-                                {'senha': senha, 'senha2': senha}, follow=True)
+        dados = {'senha': senha, 'senha2': senha}
+        if senha_atual is not None:
+            dados['senha_atual'] = senha_atual
+        return self.client.post(reverse('trocar_senha_funcionario', args=[func.pk]), dados, follow=True)
 
     def test_edicao_mostra_criar_acesso_para_quem_nao_tem_login(self):
         func = self.funcionario_sem_login()
@@ -921,7 +923,10 @@ class AcessoNaEdicaoTests(CenarioFuncionarios):
         func = self.funcionario_sem_login()
         self.criar_acesso(self.membro, func)
         beto = User.objects.get(username='beto.lima')
-        resposta = self.trocar(beto, func)
+        # Sem a senha atual (ou com ela errada), não troca
+        resposta = self.trocar(beto, func, senha_atual='errada')
+        self.assertContains(resposta, 'A senha atual não confere', status_code=400)
+        resposta = self.trocar(beto, func, senha_atual=self.SENHA)
         self.assertContains(resposta, 'Senha de beto.lima alterada')
         # Continua logado depois de trocar a própria senha
         self.assertEqual(self.client.get(reverse('lista_funcionarios')).status_code, 200)
@@ -1246,3 +1251,49 @@ class ConferenciasGeraisTests(BaseLogado):
         filho = TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='Lia', flag_ativo='S')
         pagina = self.client.get(reverse('lista_filhos', args=[resp.pk])).content.decode()
         self.assertIn(f'href="{reverse("editar_filho", args=[filho.pk])}"', pagina)
+
+
+# ----------------------------------------------------------------------
+# Achados da revisão externa: anonimizados, sessão, senha atual, menu
+# ----------------------------------------------------------------------
+class RevisaoExternaTests(BaseLogado):
+    def test_familia_anonimizada_nao_pode_ser_reativada(self):
+        self.dar_permissao_lgpd()
+        resp = criar_responsavel()
+        filho = TbFilhosResponsavel.objects.create(id_responsavel=resp, pnome='A', flag_ativo='S')
+        self.client.post(reverse('anonimizar_responsavel', args=[resp.pk]))
+        resposta = self.client.post(reverse('reativar_responsavel', args=[resp.pk]), follow=True)
+        self.assertContains(resposta, 'foi anonimizado (LGPD)')
+        resp.refresh_from_db(); filho.refresh_from_db()
+        self.assertEqual((resp.flag_ativo, filho.flag_ativo), ('N', 'N'))
+        # nem a criança sozinha, nem pela edição
+        self.client.post(reverse('reativar_filho', args=[filho.pk]))
+        self.client.post(reverse('atualiza_responsavel'), {
+            'id_responsavel': resp.pk, 'pnome': 'Maria', 'snome': 'Silva', 'cpf': '***', 'endereco': 'R',
+            'bairro': 'B', 'cidade': 'C', 'estado': 'SP', 'ativo': 'S'})
+        resp.refresh_from_db(); filho.refresh_from_db()
+        self.assertEqual((resp.flag_ativo, resp.pnome, filho.flag_ativo), ('N', 'Responsável', 'N'))
+        self.assertEqual(self.client.get(reverse('editar_filho', args=[filho.pk])).status_code, 302)
+
+    def test_padrinho_anonimizado_nao_pode_ser_reativado(self):
+        self.dar_permissao_lgpd()
+        mp = TbMadrinhaPadrinho.objects.create(pnome='P', flag_ativo='S')
+        self.client.post(reverse('anonimizar_titular', args=[mp.pk]))
+        self.client.post(reverse('reativar_madrinha_padrinho', args=[mp.pk]))
+        mp.refresh_from_db()
+        self.assertEqual(mp.flag_ativo, 'N')
+
+    def test_sessao_conta_a_partir_da_ultima_atividade(self):
+        from django.conf import settings
+        self.assertTrue(settings.SESSION_SAVE_EVERY_REQUEST)
+
+    def test_menu_usa_links_e_nao_formularios(self):
+        """Formulários no menu faziam o F5 perguntar "reenviar formulário?"."""
+        pagina = self.client.get(reverse('home')).content.decode()
+        self.assertIn(f'class="dropdown-item" href="{reverse("lista_responsavel")}"', pagina)
+        self.assertNotIn(f'<form action="{reverse("lista_responsavel")}"', pagina)
+        # todos os destinos do menu abrem com um link (GET)
+        import re
+        for url in set(re.findall(r'class="dropdown-item" href="([^"]+)"', pagina)):
+            with self.subTest(url):
+                self.assertEqual(self.client.get(url).status_code, 200)

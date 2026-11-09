@@ -271,6 +271,23 @@ def _buscar_por_id_ou_404(model, valor):
     return obj
 
 
+def _esta_anonimizado(obj):
+    """Anonimizado pela LGPD: o CPF virou 'ANON-<id>'."""
+    return str(getattr(obj, 'cpf', '') or '').startswith(PREFIXO_ANONIMO)
+
+
+def _bloquear_se_anonimizado(request, obj, destino, *args):
+    """
+    Anonimizar é irreversível (LGPD): o cadastro não pode voltar a ficar ativo
+    nem ser editado (senão, por exemplo, "Criança Anonimizada" voltaria a
+    aparecer como disponível para apadrinhar).
+    """
+    if _esta_anonimizado(obj):
+        messages.error(request, 'Este cadastro foi anonimizado (LGPD): não pode ser reativado nem editado.')
+        return redirect(destino, *args)
+    return None
+
+
 def _anonimizar_endereco(obj, estado='--'):
     obj.endereco = "Removido"
     obj.complemento = ""
@@ -552,6 +569,9 @@ def desativa_funcionario(request, id_funcionario):
 @tratar_erros
 def reativa_funcionario(request, id_funcionario):
     func = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_anonimizado(request, func, 'lista_funcionarios_desativos')
+    if bloqueio:
+        return bloqueio
     bloqueio = _bloquear_se_admin(request, func)
     if bloqueio:
         return bloqueio
@@ -574,6 +594,9 @@ def lista_funcionarios_desativos(request):
 @tratar_erros
 def atualiza_funcionario(request):
     funcionario = _buscar_por_id_ou_404(TbFuncionario, request.POST.get('id_funcionario'))
+    bloqueio = _bloquear_se_anonimizado(request, funcionario, 'lista_funcionarios')
+    if bloqueio:
+        return bloqueio
     bloqueio = _bloquear_se_admin(request, funcionario)
     if bloqueio:
         return bloqueio
@@ -618,6 +641,7 @@ def _tela_editar_funcionario(request, funcionario, erros_acesso=None, form_acess
         'pode_criar_admin': request.user.is_superuser,
         'login': login,
         'pode_trocar_senha': _pode_trocar_senha(request, login),
+        'trocando_a_propria': login is not None and login.pk == request.user.pk,
         'erros_acesso': erros_acesso or {},
         'form_acesso': form_acesso or {},
     }, status=status)
@@ -627,6 +651,9 @@ def _tela_editar_funcionario(request, funcionario, erros_acesso=None, form_acess
 @tratar_erros
 def editar_funcionario(request, id_funcionario):
     funcionario = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_anonimizado(request, funcionario, 'lista_funcionarios')
+    if bloqueio:
+        return bloqueio
     bloqueio = _bloquear_se_admin(request, funcionario)
     if bloqueio:
         return bloqueio
@@ -639,6 +666,9 @@ def editar_funcionario(request, id_funcionario):
 def criar_acesso_funcionario(request, id_funcionario):
     """Cria o login de um funcionário cadastrado antes do acesso por senha."""
     funcionario = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_anonimizado(request, funcionario, 'lista_funcionarios')
+    if bloqueio:
+        return bloqueio
     bloqueio = _bloquear_se_admin(request, funcionario)
     if bloqueio:
         return bloqueio
@@ -680,6 +710,9 @@ def criar_acesso_funcionario(request, id_funcionario):
 @tratar_erros
 def trocar_senha_funcionario(request, id_funcionario):
     funcionario = get_object_or_404(TbFuncionario, id_funcionario=id_funcionario)
+    bloqueio = _bloquear_se_anonimizado(request, funcionario, 'lista_funcionarios')
+    if bloqueio:
+        return bloqueio
     bloqueio = _bloquear_se_admin(request, funcionario)
     if bloqueio:
         return bloqueio
@@ -695,6 +728,10 @@ def trocar_senha_funcionario(request, id_funcionario):
 
     senha = request.POST.get('senha') or ''
     erros = _erros_senha(senha, request.POST.get('senha2') or '', login)
+    if login.pk == request.user.pk and not login.check_password(request.POST.get('senha_atual') or ''):
+        # Trocar a PRÓPRIA senha exige a atual: quem achar o computador de um
+        # colega aberto não consegue trocar a senha dele.
+        erros['senha_atual'] = 'A senha atual não confere.'
     if erros:
         messages.error(request, 'Confira a nova senha.')
         return _tela_editar_funcionario(request, funcionario, erros, status=400)
@@ -918,6 +955,9 @@ def lista_responsavel_des(request):
 @tratar_erros
 def edit_responsavel(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
+    bloqueio = _bloquear_se_anonimizado(request, responsavel, 'lista_responsavel_des')
+    if bloqueio:
+        return bloqueio
     return render(request, 'gerencias/editar_responsavel.html', {'dados': [responsavel], 'titulo': 'Responsável'})
 
 
@@ -926,6 +966,9 @@ def edit_responsavel(request, id_responsavel):
 @tratar_erros
 def atualiza_responsavel(request):
     responsavel = _buscar_por_id_ou_404(TbCadastroResponsavel, request.POST.get('id_responsavel'))
+    bloqueio = _bloquear_se_anonimizado(request, responsavel, 'lista_responsavel_des')
+    if bloqueio:
+        return bloqueio
     # Mesmos obrigatórios do cadastro (a data em branco mantém a que já existe).
     faltando = [msg for campo, msg in CAMPOS_OBRIGATORIOS_RESPONSAVEL.items()
                 if campo != 'dt_nasc' and not (request.POST.get(campo) or '').strip()]
@@ -1002,6 +1045,9 @@ def desativa_responsavel(request, id_responsavel):
 @tratar_erros
 def reativa_responsavel(request, id_responsavel):
     responsavel = get_object_or_404(TbCadastroResponsavel, pk=id_responsavel)
+    bloqueio = _bloquear_se_anonimizado(request, responsavel, 'lista_responsavel_des')
+    if bloqueio:
+        return bloqueio
     with transaction.atomic():
         criancas, _ = _definir_situacao_familia(responsavel, 'S')
     messages.success(request, f'Família de {responsavel} reativada ({criancas} criança(s) também reativada(s)).')
@@ -1053,6 +1099,9 @@ def desativar_filho(request, id_responsavel):
 @tratar_erros
 def reativar_filho(request, id_filho):
     filho = get_object_or_404(TbFilhosResponsavel, id_filho=id_filho)
+    bloqueio = _bloquear_se_anonimizado(request, filho, 'lista_filhos', filho.id_responsavel_id)
+    if bloqueio:
+        return bloqueio
     filho.flag_ativo = 'S'
     filho.save(update_fields=['flag_ativo'])
     return redirect('lista_filhos', id_responsavel=filho.id_responsavel_id)
@@ -1081,6 +1130,9 @@ def novo_filho(request, id_responsavel):
 @tratar_erros
 def editar_filho(request, id_filho):
     registro = get_object_or_404(TbFilhosResponsavel, id_filho=id_filho)
+    bloqueio = _bloquear_se_anonimizado(request, registro, 'lista_filhos', registro.id_responsavel_id)
+    if bloqueio:
+        return bloqueio
     filho = {
         'pnome': registro.pnome or '', 'snome': registro.snome or '',
         'dt_nasc': registro.data_nascimento or '', 'cpf': registro.cpf_mascarado,
@@ -1117,6 +1169,9 @@ def insere_novo_filho(request):
 @tratar_erros
 def atualiza_filho(request, id_filho):
     filho = get_object_or_404(TbFilhosResponsavel, id_filho=id_filho)
+    bloqueio = _bloquear_se_anonimizado(request, filho, 'lista_filhos', filho.id_responsavel_id)
+    if bloqueio:
+        return bloqueio
     # O responsável vem do próprio registro, não do formulário (não dá para
     # "mudar" a criança de família alterando um campo escondido).
     responsavel = filho.id_responsavel
@@ -1329,6 +1384,9 @@ def lista_madrinha_padrinho_desativados(request):
 @tratar_erros
 def editar_madrinha_padrinho(request, id_mad_pad):
     registro = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
+    bloqueio = _bloquear_se_anonimizado(request, registro, 'lista_madrinha_padrinho_desativados')
+    if bloqueio:
+        return bloqueio
     return render(request, 'gerencias/editar_madrinha_padrinho.html', {'registro': registro})
 
 
@@ -1337,6 +1395,9 @@ def editar_madrinha_padrinho(request, id_mad_pad):
 @tratar_erros
 def atualiza_madrinha_padrinho(request, id_mad_pad):
     registro = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
+    bloqueio = _bloquear_se_anonimizado(request, registro, 'lista_madrinha_padrinho_desativados')
+    if bloqueio:
+        return bloqueio
 
     cpf, erro = _ler_cpf(request, obrigatorio=False, permitir_mascara=True)
     if erro:
@@ -1379,6 +1440,9 @@ def atualiza_madrinha_padrinho(request, id_mad_pad):
 @tratar_erros
 def reativar_madrinha_padrinho(request, id_mad_pad):
     registro = get_object_or_404(TbMadrinhaPadrinho, id_mad_pad=id_mad_pad)
+    bloqueio = _bloquear_se_anonimizado(request, registro, 'lista_madrinha_padrinho_desativados')
+    if bloqueio:
+        return bloqueio
     registro.flag_ativo = 'S'
     registro.atualizacao_cad = timezone.now()
     registro.save(update_fields=['flag_ativo', 'atualizacao_cad'])

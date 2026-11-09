@@ -192,6 +192,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 # Tempo de expiração curta para a sessão (Requisito 5 - Tokens Seguros)
 # Desloga o usuário após 1 hora (3600 segundos) de inatividade
 SESSION_COOKIE_AGE = 3600
+# Renova a contagem a cada página aberta: a 1 hora passa a contar da ÚLTIMA
+# atividade, não do login (antes, quem estava no meio de um cadastro era
+# desconectado 1 hora depois de entrar, mesmo trabalhando).
+SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # ==========================================

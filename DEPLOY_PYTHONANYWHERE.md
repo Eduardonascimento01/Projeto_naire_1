@@ -22,11 +22,16 @@ PythonAnywhere. O site vai ficar em `https://SEUUSUARIO.pythonanywhere.com`.
 ## 2. Baixar o código
 
 ```bash
-git clone https://github.com/Eduardonascimento01/Projeto_naire_1.git
+git clone -b deploy-pythonanywhere https://github.com/Eduardonascimento01/Projeto_naire_1.git
 cd Projeto_naire_1
 ```
 
-## 3. Criar o ambiente virtual (Python 3.13 ou 3.12)
+O `-b deploy-pythonanywhere` baixa o branch que tem este guia e os comandos
+de demonstração. Sem ele, o Git baixa o `main`, que ainda não tem esses
+arquivos (o passo 3 falharia). Quando o branch for juntado ao `main`, o
+`-b deploy-pythonanywhere` deixa de ser necessário.
+
+## 3. Criar o ambiente virtual (Python 3.12, ou 3.13)
 
 Veja quais versões existem:
 
@@ -34,10 +39,12 @@ Veja quais versões existem:
 ls /usr/bin/python3.1*
 ```
 
-Use a **3.13** se ela aparecer. Senão, use a 3.12. **Não use a 3.14.**
+Use a **3.12**: é a versão mais nova com suporte oficial do Django 4.2.
+A 3.13 também funciona (os testes passam nela), mas não é garantida pelo
+Django. **Não use a 3.14**: com ela o Django 4.2 dá erro.
 
 ```bash
-python3.13 -m venv ~/.virtualenvs/naire
+python3.12 -m venv ~/.virtualenvs/naire
 source ~/.virtualenvs/naire/bin/activate
 pip install --no-cache-dir -r requirements-web.txt
 ```

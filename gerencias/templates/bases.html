@@ -27,24 +27,15 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'lista_funcionarios' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTA</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_funcionarios' %}">LISTA</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'novo_funcionario' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">NOVO</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'novo_funcionario' %}">NOVO</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_funcionarios_desativos' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">DESATIVADOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_funcionarios_desativos' %}">DESATIVADOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                             </ul>
@@ -55,31 +46,19 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'novo_responsavel' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">CADASTRAR</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'novo_responsavel' %}">CADASTRAR</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_responsavel' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR VALIDADOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_responsavel' %}">LISTAR VALIDADOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_responsavel_nval' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR NÃO VALIDADOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_responsavel_nval' %}">LISTAR NÃO VALIDADOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_responsavel_des' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR DESATIVADOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_responsavel_des' %}">LISTAR DESATIVADOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>                        
                             </ul>
@@ -90,19 +69,11 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'lista_filhos_total' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR TOTAL</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_filhos_total' %}">LISTAR TOTAL</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'buscar_filhos' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">
-                                            <i class="fas fa-search"></i> BUSCAR
-                                        </button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'buscar_filhos' %}"><i class="fas fa-search"></i> BUSCAR</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>                      
                             </ul>
@@ -113,31 +84,19 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'lista_madrinha_padrinho' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR ATIVOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_madrinha_padrinho' %}">LISTAR ATIVOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'novo_madrinha_padrinho' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">NOVO(A)</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'novo_madrinha_padrinho' %}">NOVO(A)</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_madrinha_padrinho_desativados' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR DESATIVADOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_madrinha_padrinho_desativados' %}">LISTAR DESATIVADOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_apadrinhamento' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">APADRINHAMENTOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_apadrinhamento' %}">APADRINHAMENTOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                             </ul>
@@ -148,17 +107,11 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'listar_eventos' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'listar_eventos' %}">LISTAR</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'novo_evento' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">NOVO</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'novo_evento' %}">NOVO</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                             </ul>
@@ -169,17 +122,11 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'listar_entregas' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTAR</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'listar_entregas' %}">LISTAR</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'nova_entrega' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">NOVA</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'nova_entrega' %}">NOVA</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                             </ul>
@@ -190,17 +137,11 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
-                                    <form action="{% url 'novo_oficio' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">NOVO OFICIO</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'novo_oficio' %}">NOVO OFICIO</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form action="{% url 'lista_oficio' %}" method="POST" style="display: inline; width: 100%;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">LISTA OFÍCIOS</button>
-                                    </form>
+                                    <a class="dropdown-item" href="{% url 'lista_oficio' %}">LISTA OFÍCIOS</a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>                        
                             </ul>

@@ -241,6 +241,15 @@
                                 {% csrf_token %}
                                 <h6 class="fw-semibold mb-3"><i class="bi bi-key"></i> Trocar senha</h6>
                                 <div class="row g-3">
+                                    {% if trocando_a_propria %}
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold" for="acesso-senha_atual">Senha atual <span class="text-danger">*</span></label>
+                                        <input type="password" name="senha_atual" id="acesso-senha_atual" required autocomplete="current-password"
+                                               class="form-control shadow-sm {% if erros_acesso.senha_atual %}is-invalid{% endif %}"
+                                               data-msg-obrigatorio="Informe a sua senha atual.">
+                                        <div class="invalid-feedback">{{ erros_acesso.senha_atual|default:"Informe a sua senha atual." }}</div>
+                                    </div>
+                                    {% endif %}
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold" for="acesso-senha">Nova senha <span class="text-danger">*</span></label>
                                     <input type="password" name="senha" id="acesso-senha" required autocomplete="new-password"
