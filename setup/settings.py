@@ -3,6 +3,9 @@ import os
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
+# Ponte para o django-cryptography 1.1 funcionar no Django 5 (ver o arquivo).
+import setup.compat_baseconv  # noqa: F401
+
 # Constrói os caminhos dentro do projeto, por exemplo: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -64,6 +67,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'gerencias.middleware.CabecalhosSegurancaMiddleware',
     'gerencias.middleware.LogAuditoriaMiddleware',
 ]
 
@@ -177,6 +181,35 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
+# Content-Security-Policy: lista de onde o navegador pode carregar scripts,
+# estilos, fontes e imagens. Só o próprio site e o CDN do Bootstrap/SweetAlert.
+# 'unsafe-inline' fica por enquanto porque as telas têm <script> e onclick
+# escritos dentro do HTML; mesmo assim a CSP bloqueia script de outros sites,
+# formulário enviado pra fora, plugins e o site dentro de iframe.
+CSP_POLITICA = os.environ.get('DJANGO_CSP') or "; ".join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "font-src 'self' https://cdn.jsdelivr.net data:",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+])
+PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+
+# De onde vem o IP verdadeiro de quem acessa (log de auditoria e trava de
+# força bruta). Padrão: REMOTE_ADDR (não dá pra falsificar).
+# Atrás de um proxy que reescreve o cabeçalho (ex.: PythonAnywhere usa
+# X-Real-IP), defina DJANGO_IP_HEADER=HTTP_X_REAL_IP no .env.
+IP_HEADER = os.environ.get('DJANGO_IP_HEADER', 'REMOTE_ADDR').strip() or 'REMOTE_ADDR'
+
+# Endereço do painel admin. Trocar o padrão "admin/" tira o painel da mira
+# dos robôs que testam esse caminho. Ex.: DJANGO_ADMIN_URL=gestao-naire/
+ADMIN_URL = os.environ.get('DJANGO_ADMIN_URL', 'admin/').strip().strip('/') + '/'
+
 # Forçar HTTPS (HSTS) - Ativado automaticamente em produção (DEBUG=False)
 if not DEBUG:
     # Em servidores que já forçam HTTPS na frente do Django (ex.: a opção
@@ -212,3 +245,7 @@ AUTHENTICATION_BACKENDS = [
 AXES_FAILURE_LIMIT = 5      # Bloqueia o IP após 5 tentativas erradas de senha
 AXES_COOLOFF_TIME = 1       # Tempo de bloqueio: 1 hora
 AXES_RESET_ON_SUCCESS = True # Zera a contagem se o usuário logar com sucesso
+# A trava usa o mesmo IP verdadeiro do log (ver IP_HEADER acima). Sem isso,
+# atrás de proxy todos os usuários "teriam o mesmo IP" e 5 erros de um
+# atacante travariam o login de todo mundo.
+AXES_CLIENT_IP_CALLABLE = 'gerencias.middleware.ip_do_cliente'

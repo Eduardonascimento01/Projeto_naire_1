@@ -1282,10 +1282,22 @@ def novo_oficio(request):
     })
 
 
+def _oficios_visiveis(user):
+    """
+    Quem vê cada ofício: quem enviou, o funcionário cujo login é o
+    destinatário, e quem tem permissão LGPD (superusuário ou grupo LGPD).
+    Antes, qualquer funcionário lia o ofício de qualquer outro.
+    """
+    oficios = TbOficios.objects.select_related('id_usuario')
+    if pode_usar_lgpd(user):
+        return oficios.all()
+    return oficios.filter(Q(id_usuario_id=user.id) | Q(destinatario__iexact=user.username))
+
+
 @login_required
 @tratar_erros
 def lista_oficio(request):
-    lista = TbOficios.objects.select_related('id_usuario').all().order_by('-data_criacao')
+    lista = _oficios_visiveis(request.user).order_by('-data_criacao')
     primeiro = lista.first()
     return render(request, 'gerencias/lista_oficios.html', {
         'id_oficio': primeiro.id_oficio if primeiro else None,
@@ -1297,7 +1309,8 @@ def lista_oficio(request):
 @login_required
 @tratar_erros
 def exibe_oficio(request, id_oficio):
-    oficio = get_object_or_404(TbOficios, id_oficio=id_oficio)
+    # 404 (e não 403) pra não confirmar que o ofício de outra pessoa existe.
+    oficio = get_object_or_404(_oficios_visiveis(request.user), id_oficio=id_oficio)
     return render(request, 'gerencias/exibe_oficio.html', {
         'oficio': oficio,
         'id_oficio': id_oficio,

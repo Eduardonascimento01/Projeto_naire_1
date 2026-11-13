@@ -39,9 +39,8 @@ Veja quais versões existem:
 ls /usr/bin/python3.1*
 ```
 
-Use a **3.12**: é a versão mais nova com suporte oficial do Django 4.2.
-A 3.13 também funciona (os testes passam nela), mas não é garantida pelo
-Django. **Não use a 3.14**: com ela o Django 4.2 dá erro.
+Use a **3.12** (ou a 3.13): o sistema usa o Django 5.2 LTS, que tem suporte
+oficial para as duas.
 
 ```bash
 python3.12 -m venv ~/.virtualenvs/naire
@@ -76,6 +75,8 @@ DJANGO_ALLOWED_HOSTS=SEUUSUARIO.pythonanywhere.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://SEUUSUARIO.pythonanywhere.com
 DJANGO_SECURE_SSL_REDIRECT=False
 DB_ENGINE=sqlite
+DJANGO_IP_HEADER=HTTP_X_REAL_IP
+DJANGO_ADMIN_URL=INVENTE-UM-NOME/
 ```
 
 Salve com **Ctrl+O** e **Enter**, e saia com **Ctrl+X**.
@@ -90,6 +91,13 @@ O que cada linha faz:
   PythonAnywhere (passo 7). Deixar o Django forçar também causa um loop
   de redirecionamento.
 - `DB_ENGINE=sqlite`: usa um banco em arquivo (`demo.sqlite3`), sem MySQL.
+- `DJANGO_IP_HEADER=HTTP_X_REAL_IP`: o PythonAnywhere entrega o IP verdadeiro
+  de quem acessa nesse cabeçalho. Sem ele, o log e a trava de senha veriam
+  todo mundo com o mesmo IP (o do servidor do PythonAnywhere), e 5 senhas
+  erradas de uma pessoa travariam o login de todos.
+- `DJANGO_ADMIN_URL`: o endereço do painel admin. Troque por um nome só do
+  grupo (ex.: `gestao-naire-2026/`). O `/admin/` padrão é o primeiro lugar
+  que robôs tentam.
 
 ## 5. Preparar o banco e os dados de teste
 
@@ -189,6 +197,42 @@ python manage.py collectstatic --noinput
 ```
 
 Depois clique em **Reload** na aba Web.
+
+**Atualização de segurança de 2026-11-13 (Django 5.2), só uma vez:**
+
+1. Atualize o código e as bibliotecas (o Django sobe de 4.2 para 5.2):
+
+   ```bash
+   cd ~/Projeto_naire_1
+   source ~/.virtualenvs/naire/bin/activate
+   git fetch
+   git checkout correcoes-seguranca   # ou o branch onde ela foi juntada
+   git pull
+   pip install --no-cache-dir -r requirements-web.txt
+   python manage.py migrate
+   python manage.py collectstatic --noinput
+   ```
+
+2. Acrescente ao `.env` (`nano .env`) as duas linhas novas do passo 4:
+   `DJANGO_IP_HEADER=HTTP_X_REAL_IP` e `DJANGO_ADMIN_URL=...`.
+3. Clique em **Reload** na aba Web.
+4. Confira: entre no site, abra algumas telas e aperte **F12 → Console**.
+   Não deve aparecer erro com "Content-Security-Policy". O painel admin
+   passa a ficar no endereço novo (`/SEU-NOME/`), e `/admin/` dá 404.
+5. Depois que 2 pessoas (de casas diferentes) entrarem no site, confira os
+   IPs gravados no log, no console Bash:
+
+   ```bash
+   python manage.py shell -c "from gerencias.models import TbLogAuditoria as L; print(list(L.objects.order_by('-pk').values_list('usuario', 'ip')[:10]))"
+   ```
+
+   Os IPs devem ser diferentes de pessoa pra pessoa. Se todos forem iguais,
+   o `DJANGO_IP_HEADER` está errado.
+
+O que mudou: Django 5.2 LTS (o 4.2 não recebe mais correções), lista de
+fontes permitidas (CSP), log sem IP falso e sem visitante anônimo,
+"esqueci minha senha" por e-mail desligado, sair só pelo botão (POST) e
+ofício visível só para remetente, destinatário e LGPD.
 
 **Algo deu errado?** Na aba Web, abra o **Error log**. As últimas linhas
 mostram o erro.

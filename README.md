@@ -15,7 +15,7 @@ Sistema web desenvolvido em Python/Django para gestão de apadrinhamentos, entre
 `git clone [URL_DO_SEU_REPOSITORIO]`
 
 2. Crie e ative o ambiente virtual **com Python 3.12** (recomendado; a 3.13 também funciona).
-O Python 3.14 não funciona: o Django 4.2 não o suporta, e o `django-cryptography` (que cifra os CPFs) não funciona no Django 5.
+O projeto usa o Django 5.2 LTS. O `django-cryptography` (que cifra os CPFs) só funciona no Django 5 graças à ponte `setup/compat_baseconv.py`: não apague esse arquivo.
 `py -3.12 -m venv .venv`
 `.\.venv\Scripts\Activate.ps1`
 

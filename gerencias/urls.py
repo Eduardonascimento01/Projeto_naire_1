@@ -6,7 +6,8 @@ from django.views.generic import RedirectView
 urlpatterns = [
     path('',views.home,name='home'),
     path('logout/', auth_views.LogoutView.as_view(next_page=''), name='logout'),
-    path('signup/', RedirectView.as_view(url='/admin/'), name='signup'),
+    # Cadastro público fechado: manda pro login (não revela o endereço do admin).
+    path('signup/', RedirectView.as_view(pattern_name='login'), name='signup'),
     
     # ROTA DE CADASTRO PÚBLICO REMOVIDA POR SEGURANÇA (CRÍTICO-01 / ALTO-03)
     # A criação de usuários da ONG agora deve ser feita exclusivamente via Admin
